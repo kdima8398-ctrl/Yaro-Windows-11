@@ -9,7 +9,7 @@ no ads and pre-installed junk apps, minimal telemetry, fewer background services
 games and development (Python, WSL2, Docker).
 
 This repository contains **no Windows files**. You download Windows from Microsoft; Yaro is just
-an answer file (`autounattend.xml`) and two PowerShell scripts that apply the changes during setup.
+an answer file (`autounattend.xml`) and PowerShell scripts that apply the changes during setup.
 
 > [!WARNING]
 > By default Yaro **turns off Microsoft Defender, SmartScreen, UAC prompts, automatic updates,
@@ -24,7 +24,8 @@ an answer file (`autounattend.xml`) and two PowerShell scripts that apply the ch
 | `autounattend.xml` | Answer file for a clean install. The scripts are embedded inside it. |
 | `Yaro-Apply.cmd` | Applies Yaro to an already installed Windows 11. |
 | `scripts/Specialize.ps1` | System-wide changes: apps, components, services, registry. |
-| `scripts/FirstLogon.ps1` | Settings of the user, power plan, MSI mode for GPU/NVMe/network. |
+| `scripts/FirstLogon.ps1` | Settings of the user and power plan. |
+| `scripts/YaroCommon.ps1` | Options and registry helpers shared by both setup stages. |
 | `scripts/SetWallpaper.ps1` | Puts the Yaro wallpaper on the desktop. |
 | `assets/` | Banner, logo, GitHub social preview and 1920×1080 notebook-paper wallpapers: light (white, cream, yellow, grid, realistic paper) and dark (night sky, plum, ocean, forest, cocoa, navy, graphite, black grid, realistic black paper). |
 
@@ -48,7 +49,7 @@ an answer file (`autounattend.xml`) and two PowerShell scripts that apply the ch
 5. **After the first sign-in**
    - install drivers (chipset, graphics, Wi-Fi) from the manufacturer's site — Yaro turns off
      driver downloads through Windows Update, so keep the Wi-Fi/LAN driver on the USB stick;
-   - check the logs in `C:\Windows\Setup\Scripts\Yaro\` — lines with `FAIL` show what did not apply;
+   - check the logs in `%SystemRoot%\Setup\Scripts\Yaro\` — lines with `FAIL` show what did not apply;
    - after installing Intel drivers you can run `Yaro-Apply.cmd` once more: it removes the
      Intel telemetry that Intel software installs.
 6. **Activate Windows with your own key:** Settings › System › Activation › Change product key.
@@ -61,15 +62,16 @@ an answer file (`autounattend.xml`) and two PowerShell scripts that apply the ch
 1. *Code › Download ZIP*, unpack the archive.
 2. If you want Defender off, first turn off **Tamper Protection**
    (Windows Security › Virus & threat protection › Manage settings).
-3. Run `Yaro-Apply.cmd` (it asks for administrator rights itself). It creates a restore point
-   if System Protection is on, applies everything and writes logs to `C:\Windows\Setup\Scripts\Yaro\`.
+3. Run `Yaro-Apply.cmd` from the account you want to configure. Approve elevation for the
+   system settings and restore point. The launcher applies desktop and app settings as the original
+   user, including when another administrator supplies the credentials.
 4. Restart Windows.
 
 ## Options
 
-At the top of `Specialize.ps1` (inside `autounattend.xml` for a clean install,
-`scripts/Specialize.ps1` for `Yaro-Apply.cmd`). `$true` is the Yaro default,
-`$false` keeps the normal Windows behaviour.
+Edit the `Yaro options` block inside `autounattend.xml` for a clean install or
+`scripts/YaroCommon.ps1` for `Yaro-Apply.cmd`. `$true` applies the Yaro setting and
+`$false` skips it on that run.
 
 | Option | What `$true` does |
 |---|---|
@@ -80,7 +82,7 @@ At the top of `Specialize.ps1` (inside `autounattend.xml` for a clean install,
 | `$DisablePrinting` | Turns off the print spooler |
 | `$DisableBtHandsFree` | Turns off the Bluetooth hands-free profile: headphones stay in stereo in games, their microphone is not used |
 | `$DisableVPN` | Turns off RasMan/RasAuto (the built-in Windows VPN and dial-up) |
-| `$SetWallpaper` | Sets the cream notebook-paper Yaro wallpaper for every user. The image is embedded in `autounattend.xml` and saved to `C:\Windows\Web\Wallpaper\Yaro\`; you can change it any time in Settings › Personalization |
+| `$SetWallpaper` | Sets the cream notebook-paper Yaro wallpaper for every user. The image is embedded in `autounattend.xml` and saved to `%SystemRoot%\Web\Wallpaper\Yaro\`; you can change it any time in Settings › Personalization |
 
 ## What Yaro changes
 
@@ -105,23 +107,33 @@ from the Store.
 Windows Hello face, Internet Explorer mode, Steps Recorder, Math Recognizer, legacy Windows Media
 Player, handwriting and speech recognition, Fax and Scan, extra wallpapers. Turned off: SMB1,
 PowerShell 2.0, XPS printing, Work Folders, Remote Differential Compression, legacy media
-playback. **Added:** .NET Framework 3.5 (from the USB stick, if it is still connected).
+playback. On Windows versions that offer .NET Framework 3.5 as an optional feature, Yaro enables
+it from connected installation media after matching the package architecture and servicing build. On versions with a standalone installer, install
+it separately if an app requires it. [Microsoft .NET 3.5 guidance](https://learn.microsoft.com/en-us/dotnet/framework/install/dotnet-35-windows-11)
 
 ### Services
 Disabled: DiagTrack, dmwappushservice, MapsBroker, RetailDemo, CDPSvc, CDPUserSvc, TermService,
 WSAIFabricSvc, PcaSvc, InventorySvc, TrkWks (+ Spooler, PrintNotify, BTAGService, RasMan, RasAuto,
 Defender services when the options are on). Manual: WerSvc, Xbox services, RmSvc.
-Automatic: SysMain, DPS. Background compatibility, CEIP, disk diagnostic and WinSAT
-scheduled tasks are disabled.
+Automatic: SysMain, DPS. Yaro also skips creating the disabled CDPUserSvc instance at sign-in
+when the standard service template is present. Background compatibility, CEIP, disk diagnostic and WinSAT
+scheduled tasks are disabled. Yaro also disables the matching OneDrive reporting task when sync
+is blocked and the administrator has left health reports off. Under those conditions Yaro also
+removes the standard OneDrive startup entries from the current and default profiles as applicable,
+unless administrator policy requires autostart. The updater uses a separate task.
 
 ### Performance
 - Service host grouping (fewer `svchost.exe` processes), memory compression on.
-- Kernel kept in RAM, no background power throttling, reserved storage off.
-- NTFS last-access time and 8.3 short names off, long paths (> 260 characters) allowed.
-- Hardware-accelerated GPU scheduling, optimizations for windowed games, variable refresh rate.
-- MSI mode for GPU, NVMe and network adapters.
-- Power: *Ultimate Performance* plan with minimum CPU state 5 %, *Best performance* power mode.
-  On a laptop this costs battery life.
+- Kernel kept in RAM, reserved storage off. Windows manages background power throttling.
+- NTFS last-access updates off, long paths (> 260 characters) allowed. Windows or the administrator controls 8.3 short names per volume.
+- Hardware-accelerated GPU scheduling. Windowed-game optimizations and variable refresh rate
+  are enabled when their settings are missing. Existing graphics choices are preserved.
+- Game Bar background recording of recent gameplay is off for the current and new profiles.
+  Game Mode follows the Windows setting. Device drivers choose their interrupt mode.
+- On Balanced and compatible plans, Yaro selects *Best Performance* when plugged in and keeps
+  the existing battery mode. If that mode is unavailable, Yaro tries the *Ultimate Performance*
+  plan with a 5% minimum CPU state. That plan can use more power on battery.
+  Global power-throttling and short-name settings from older versions retain their values.
 - No network throttling for multimedia, Edge does not preload in the background.
 - Installers and drivers do not hang for 2 minutes on certificate checks
   (short certificate download timeouts).
@@ -152,6 +164,10 @@ Run in **Command Prompt as administrator**, then restart Windows.
 Defender and SmartScreen are best kept by setting `$DisableDefender = $false` /
 `$DisableSmartScreen = $false` **before** installing.
 
+If you restore OneDrive sync after applying Yaro, the reporting task can be enabled
+in Task Scheduler. Open OneDrive and turn on startup in its settings. In a new profile, run the
+Windows OneDrive installer if needed.
+
 ## Troubleshooting
 
 - **"Windows could not parse or process the unattend answer file"** — the file was damaged while
@@ -159,8 +175,9 @@ Defender and SmartScreen are best kept by setting `$DisableDefender = $false` /
 - **Setup stops with a language error** — the ISO language does not match `en-US` in the file
   (see step 1).
 - **No internet after install** — install the network driver from the manufacturer's site.
-- **Something was not applied** — look for `FAIL` in `C:\Windows\Setup\Scripts\Yaro\Specialize.log`
-  and `FirstLogon.log`.
+- **Something was not applied** — look for `FAIL` in `%SystemRoot%\Setup\Scripts\Yaro\Specialize.log`
+  and the user log. On an installed system the user log is `%LOCALAPPDATA%\Yaro\FirstLogon.log`.
+  After a clean install both logs are in the system directory.
 
 ## Wallpapers
 

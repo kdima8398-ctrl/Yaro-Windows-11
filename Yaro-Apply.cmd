@@ -1,23 +1,51 @@
 @echo off
-rem ============================================================================
-rem  Yaro - apply the Yaro settings to an ALREADY INSTALLED Windows 11.
-rem  Read README.md first. Options are at the top of scripts\Specialize.ps1.
-rem  Logs: C:\Windows\Setup\Scripts\Yaro\
-rem ============================================================================
-net session >nul 2>&1 || (powershell -NoProfile -Command "Start-Process '%~f0' -Verb RunAs" & exit /b)
+setlocal DisableDelayedExpansion
+rem Run this launcher from the account that should receive the user settings.
+set "YARO_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if exist "%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe" set "YARO_PS=%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+set "YARO_LOGS=%SystemRoot%\Setup\Scripts\Yaro"
+set "YARO_USER_LOG=%LOCALAPPDATA%\Yaro\FirstLogon.log"
+
 title Yaro - apply settings
 echo.
 echo  Yaro will remove apps, change services and many Windows settings.
 echo  Close this window now if you have not read README.md.
 echo.
 pause
-echo [1/3] Creating a restore point (only if System Protection is on)...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Checkpoint-Computer -Description 'Before Yaro' -RestorePointType MODIFY_SETTINGS -ErrorAction SilentlyContinue"
-echo [2/3] System settings (this can take several minutes)...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Specialize.ps1" -Live
-echo [3/3] Settings of the current user...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\FirstLogon.ps1"
+set "YARO_PARTIAL="
+
+set "YARO_STAGE=System settings"
+echo [1/2] %YARO_STAGE% and restore point (this can take several minutes)...
+"%YARO_PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Specialize.ps1" -Live
+set "YARO_RESULT=%ERRORLEVEL%"
+if "%YARO_RESULT%"=="2" (
+  set "YARO_PARTIAL=1"
+) else if not "%YARO_RESULT%"=="0" goto :failed
+
+set "YARO_STAGE=Settings of the current user"
+echo [2/2] %YARO_STAGE%...
+"%YARO_PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\FirstLogon.ps1"
+set "YARO_RESULT=%ERRORLEVEL%"
+if "%YARO_RESULT%"=="2" (
+  set "YARO_PARTIAL=1"
+) else if not "%YARO_RESULT%"=="0" goto :failed
+
 echo.
-echo  Done. Restart Windows to finish. Logs: C:\Windows\Setup\Scripts\Yaro\
-echo.
+echo  System log: "%YARO_LOGS%\Specialize.log"
+echo  User log: "%YARO_USER_LOG%"
+if defined YARO_PARTIAL (
+  echo  Finished with warnings or failed settings. Review the logs.
+  pause
+  exit /b 2
+)
+echo  Finished. Restart Windows to finish applying the settings.
 pause
+exit /b 0
+
+:failed
+echo.
+echo  %YARO_STAGE% stopped with exit code %YARO_RESULT%.
+echo  System log: "%YARO_LOGS%\Specialize.log"
+echo  User log: "%YARO_USER_LOG%"
+pause
+exit /b %YARO_RESULT%

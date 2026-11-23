@@ -1,5 +1,6 @@
-# Windows scripts and the answer file keep CRLF line endings
-*.cmd text eol=crlf
-*.ps1 text eol=crlf
-*.xml text eol=crlf
+# Keep the checked-in CRLF bytes of the Windows scripts and answer file.
+*.cmd -text whitespace=cr-at-eol
+*.ps1 -text whitespace=cr-at-eol
+*.xml -text whitespace=cr-at-eol
 *.md  text eol=lf
+.gitattributes text eol=lf
