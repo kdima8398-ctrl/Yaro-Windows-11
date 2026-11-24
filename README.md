@@ -4,196 +4,185 @@
 
 **English** | [Русский](README.ru.md)
 
-Yaro turns a clean install of the **official** Windows 11 into a lean, quiet and fast system:
-no ads and pre-installed junk apps, minimal telemetry, fewer background services, tuned for
-games and development (Python, WSL2, Docker).
+Yaro transforms a clean installation of the **official** Windows 11 into a lean, quiet, and blazing fast system:
+free of ads and pre-installed bloatware, with minimal telemetry and background overhead, tuned for
+peak gaming performance and a seamless developer workflow (Python, WSL2, Docker).
 
-This repository contains **no Windows files**. You download Windows from Microsoft; Yaro is just
-an answer file (`autounattend.xml`) and PowerShell scripts that apply the changes during setup.
+This repository contains **no pirated Windows files**. You download Windows directly from Microsoft's servers; Yaro is an automated answer file (`autounattend.xml`) and curated scripts that optimize the OS during and after setup.
 
 > [!WARNING]
-> By default Yaro **turns off Microsoft Defender, SmartScreen, UAC prompts, automatic updates,
-> printing, Bluetooth headset microphone and the built-in VPN** and switches to the
-> *Ultimate Performance* power plan (shorter battery life on laptops). Read
-> [What Yaro turns off](#what-yaro-turns-off) and [Options](#options) before installing.
+> By default Yaro **disables Microsoft Defender, SmartScreen, UAC prompts, automatic updates,
+> print spooler, Bluetooth headset hands-free mic and built-in VPN** and activates the
+> *Ultimate Performance* power plan (faster battery drain on laptops). Read
+> [What Yaro turns off](#what-yaro-turns-off) and [Options](#configuration-and-options) before installing.
 > Try it in a virtual machine first. Use at your own risk.
 
-## Files
+---
 
-| File | What it is |
+## Repository Files
+
+| File | Description |
 |---|---|
-| `autounattend.xml` | Answer file for a clean install. The scripts are embedded inside it. |
-| `Yaro-Apply.cmd` | Applies Yaro to an already installed Windows 11. |
-| `scripts/Specialize.ps1` | System-wide changes: apps, components, services, registry. |
-| `scripts/FirstLogon.ps1` | Settings of the user and power plan. |
-| `scripts/YaroCommon.ps1` | Options and registry helpers shared by both setup stages. |
-| `scripts/SetWallpaper.ps1` | Puts the Yaro wallpaper on the desktop. |
-| `assets/` | Banner, logo, GitHub social preview and 1920×1080 notebook-paper wallpapers: light (white, cream, yellow, grid, realistic paper) and dark (night sky, plum, ocean, forest, cocoa, navy, graphite, black grid, realistic black paper). |
+| `autounattend.xml` | Primary answer file for fully unattended clean install from a USB stick. |
+| `Yaro-Remove-Defender-WIM.cmd` | **Automated offline Defender removal script** directly in `install.wim` BEFORE setup. |
+| `Yaro-Apply.cmd` | Applies Yaro debloat and optimizations to an existing, already installed Windows 11. |
+| `scripts/Remove-Defender-Live.cmd` | Step-by-step Defender disabler on an active, running Windows system. |
+| `scripts/Specialize.ps1` | System phase: removes UWP bloatware, tunes services, optimizes registry and networking. |
+| `scripts/FirstLogon.ps1` | User phase: instantaneous UI responsiveness, File Explorer tweaks, Ultimate Performance plan. |
+| `scripts/YaroCommon.ps1` | Configuration switches (`$true` / `$false`) shared by both setup stages. |
+| `scripts/SetWallpaper.ps1` | Sets the signature minimalist Yaro wallpaper on the desktop. |
+| `assets/` | Banners, logos, and 1920×1080 notebook-paper wallpapers (light and dark themes). |
 
-## Clean install (recommended)
+---
 
-1. **Download Windows 11** from [microsoft.com/software-download/windows11](https://www.microsoft.com/software-download/windows11):
-   *Download Windows 11 Disk Image (ISO) for x64 devices*, language **English (United States)**.
-   For another language, replace `en-US` with its code (for example `ru-RU`) in the
-   `UILanguage`, `SystemLocale` and `UserLocale` lines of `autounattend.xml`.
-2. **Optional:** open `autounattend.xml` in Notepad and change
-   - `<TimeZone>FLE Standard Time</TimeZone>` — the time zone (Kyiv, Sofia by default); others:
-     `Russian Standard Time` (Moscow), `Central European Standard Time` (Warsaw), `UTC`;
-   - `<Name>User</Name>` — the name of the local account;
-   - the [Options](#options) (search for `Yaro options`).
-3. **Make a USB stick** (8 GB or more) with [Rufus](https://rufus.ie): partition scheme **GPT**,
-   target system **UEFI**. When Rufus shows the *Windows User Experience* window, **untick
-   everything**. Then copy `autounattend.xml` to the **root** of the USB stick.
-4. **Boot from the USB stick.** The only question is which disk/partition to install to —
-   choose carefully, the formatted partition is erased. Everything else is automatic,
-   the PC restarts several times.
-5. **After the first sign-in**
-   - install drivers (chipset, graphics, Wi-Fi) from the manufacturer's site — Yaro turns off
-     driver downloads through Windows Update, so keep the Wi-Fi/LAN driver on the USB stick;
-   - check the logs in `%SystemRoot%\Setup\Scripts\Yaro\` — lines with `FAIL` show what did not apply;
-   - after installing Intel drivers you can run `Yaro-Apply.cmd` once more: it removes the
-     Intel telemetry that Intel software installs;
-   - if you want Defender off: turn off **Tamper Protection** (Windows Security › Virus & threat
-     protection › Manage settings) and run `Yaro-Apply.cmd`.
-6. **Activate Windows with your own key:** Settings › System › Activation › Change product key.
-   The key in `autounattend.xml` is Microsoft's generic *install* key: it only selects the
-   **Pro** edition and does not activate. For a Home license, replace it with the generic
-   Home key `YTMG3-N6DKC-DKB77-7M9GH-8HVX7`.
+## Step-by-Step Clean Installation Guide (Recommended)
 
-## Apply to an installed Windows
+Setup takes around 10–15 minutes and is completely automated.
 
-1. *Code › Download ZIP*, unpack the archive.
-2. If you want Defender off, first turn off **Tamper Protection**
-   (Windows Security › Virus & threat protection › Manage settings).
-3. Run `Yaro-Apply.cmd` from the account you want to configure. Approve elevation for the
-   system settings and restore point. The launcher applies desktop and app settings as the original
-   user, including when another administrator supplies the credentials.
-   If System Protection is off, Yaro cannot create a restore point and asks whether to continue
-   without one (to turn it on: Win+R › `SystemPropertiesProtection` › drive C: › Configure).
-4. Restart Windows.
+### Step 1. Download official Windows 11 ISO
+1. Go to Microsoft's official download page: [microsoft.com/software-download/windows11](https://www.microsoft.com/software-download/windows11).
+2. Under **"Download Windows 11 Disk Image (ISO) for x64 devices"**, select your edition and language (**English (United States)** or your preferred language).
+3. Download the official `.iso` file.
 
-## Options
+### Step 2. Flash USB drive using Rufus
+1. Insert a clean USB flash drive (8 GB or larger).
+2. Download the free [Rufus](https://rufus.ie) utility.
+3. Select your USB drive and choose the downloaded Windows 11 `.iso`.
+4. Ensure the following settings are selected:
+   * Partition scheme: **GPT**
+   * Target system: **UEFI (non CSM)**
+   * File system: **NTFS**
+5. Click **"Start"**.
+6. **IMPORTANT:** When Rufus pops up the *"Windows User Experience"* customization dialog (asking to bypass TPM/RAM/online accounts), **UNCHECK ALL BOXES**! Yaro's `autounattend.xml` already handles all bypasses, local account creation, and tweaks. Rufus options can conflict with the automated answer file.
 
-Edit the `Yaro options` block inside `autounattend.xml` for a clean install or
-`scripts/YaroCommon.ps1` for `Yaro-Apply.cmd`. `$true` applies the Yaro setting and
-`$false` skips it on that run.
+### Step 3. Copy Yaro answer file to USB stick
+1. Download **`autounattend.xml`** from this repository.
+2. Copy it into the **root directory of your USB flash drive** (alongside `boot`, `efi`, and `sources`).
+   *(The path must be `E:\autounattend.xml`, not inside any subfolder).*
+3. *(Optional)* Open `autounattend.xml` in Notepad if you wish to adjust your time zone (default: `FLE Standard Time`), local username (default: `User`), or toggle specific tweaks (`Yaro options` block).
 
-| Option | What `$true` does |
-|---|---|
-| `$DisableDefender` | Turns off Microsoft Defender antivirus and hides its tray icon. While **Tamper Protection** is on (the default on current Windows, also right after setup), Defender ignores these settings — turn it off and run `Yaro-Apply.cmd` |
-| `$DisableSmartScreen` | Turns off SmartScreen for downloaded files and apps |
-| `$SilentUAC` | Programs get administrator rights without a confirmation window |
-| `$PauseUpdates` | No automatic updates, updates paused until 2077 |
-| `$DisablePrinting` | Turns off the print spooler |
-| `$DisableBtHandsFree` | Turns off the Bluetooth hands-free profile: headphones stay in stereo in games, their microphone is not used |
-| `$DisableVPN` | Turns off RasMan/RasAuto (the built-in Windows VPN and dial-up) |
-| `$ArgonPerformance` | Performance tweaks from the Argon build: *Ultimate Performance* plan with a 5% minimum CPU state (plugged in and on battery), no power throttling of background processes, `SystemResponsiveness = 0`, no 8.3 short names, Game Mode off. Laptop batteries last less |
-| `$ForceMSI` | `$false` by default. Turns on MSI interrupts for the graphics card, NVMe and network adapters, as in Argon. On an unsuitable device the driver can stop working — turn it on only if you know why. Run `Yaro-Apply.cmd` again after installing the graphics driver |
-| `$SetWallpaper` | Sets the cream notebook-paper Yaro wallpaper for every user. The image is embedded in `autounattend.xml` and saved to `%SystemRoot%\Web\Wallpaper\Yaro\`; you can change it any time in Settings › Personalization |
+### Step 4. (Optional, Recommended) Remove Defender BEFORE setup
+If you want Microsoft Defender permanently disabled without any background services or CPU load:
+1. Run **`Yaro-Remove-Defender-WIM.cmd`** as Administrator.
+2. The script will automatically locate `sources\install.wim` on your USB stick and disable Defender services and kernel drivers directly in the offline image.
+3. See [Complete Windows Defender Removal Guide](#complete-windows-defender-removal-guide) below.
 
-## What Yaro changes
+### Step 5. Boot from USB and install
+1. Restart your PC and press the **Boot Menu** key during startup  
+   *(Commonly **F12**, **F11**, **F8**, **Esc**, or **Fn+F12** depending on your motherboard).*
+2. Select your USB drive with the **UEFI** prefix.
+3. The automated setup starts immediately. The only prompt requiring user interaction is **disk/partition selection**:
+   * Carefully choose your target SSD partition, format it if desired, and click "Next".
+4. **Windows handles everything else automatically:**
+   * Skips Microsoft account creation, privacy questionnaires, region prompts, and internet checks.
+   * Restarts several times and lands directly on your desktop under the local `User` account.
 
-### What Yaro turns off
-- Microsoft Defender, SmartScreen, Smart App Control, UAC prompts *(options)*.
-- Memory integrity / VBS (core isolation), automatic BitLocker device encryption.
-- Automatic Windows Update and driver downloads through Windows Update.
-- Printing, Bluetooth hands-free, built-in VPN *(options)*, incoming Remote Desktop.
-- Location, telemetry, activity history, advertising and suggested apps, Copilot, widgets,
-  Bing in Start search, OneDrive sync, Game Bar and game recording, PowerShell and .NET CLI telemetry.
+### Step 6. Post-install steps
+1. **Install drivers:** install your chipset, Wi-Fi, and GPU drivers (NVIDIA/AMD/Intel) directly from the manufacturer. Yaro blocks Windows Update from auto-installing generic display drivers to prevent driver collisions.
+2. **Review logs:** check `%SystemRoot%\Setup\Scripts\Yaro\` for full installation transcripts.
+3. **Activation:** open *Settings → System → Activation* and activate your Windows 11 Pro edition with your digital license or product key.
 
-### Removed apps
-Xbox app and Game Bar, Copilot, Bing Search, Widgets, Maps, Sticky Notes, Family, Movies & TV,
-Camera, Alarms & Clock, Tips, Phone Link, Teams, Clipchamp, Power Automate, Dev Home,
-Feedback Hub, Solitaire, News, Weather, Cross Device, Edge Game Assist, Cortana, Office hub,
-new Outlook, To Do, People, Get Help, Sound Recorder, Quick Assist, old Intel Graphics panel.
-**Kept:** Microsoft Store, App Installer (winget), Terminal, Notepad, Paint, Calculator,
-Snipping Tool, Photos, Media Player, Edge, media codecs. Anything removed can be installed again
-from the Store.
+---
 
-### Removed components
-Windows Hello face, Internet Explorer mode, Steps Recorder, Math Recognizer, legacy Windows Media
-Player, handwriting and speech recognition, Fax and Scan, extra wallpapers. Turned off: SMB1,
-PowerShell 2.0, XPS printing, Work Folders, Remote Differential Compression, legacy media
-playback. On Windows versions that offer .NET Framework 3.5 as an optional feature, Yaro enables
-it from connected installation media after matching the package architecture and servicing build. On versions with a standalone installer, install
-it separately if an app requires it. [Microsoft .NET 3.5 guidance](https://learn.microsoft.com/en-us/dotnet/framework/install/dotnet-35-windows-11)
+## Complete Windows Defender Removal Guide
 
-### Services
-Disabled: DiagTrack, dmwappushservice, MapsBroker, RetailDemo, CDPSvc, CDPUserSvc, TermService,
-WSAIFabricSvc, PcaSvc, InventorySvc, TrkWks (+ Spooler, PrintNotify, BTAGService, RasMan, RasAuto,
-Defender services when the options are on). Manual: WerSvc, Xbox services, RmSvc.
-Automatic: SysMain, DPS. Yaro also skips creating the disabled CDPUserSvc instance at sign-in
-when the standard service template is present. Background compatibility, CEIP, disk diagnostic and WinSAT
-scheduled tasks are disabled. Yaro also disables the matching OneDrive reporting task when sync
-is blocked and the administrator has left health reports off. Under those conditions Yaro also
-removes the standard OneDrive startup entries from the current and default profiles as applicable,
-unless administrator policy requires autostart. The updater uses a separate task.
+In modern Windows 11, Defender is shielded by kernel-level **Tamper Protection** and Protected Process Light (PPL), preventing standard scripts from stopping services or modifying registry keys on a live system.
 
-### Performance
-- Service host grouping (fewer `svchost.exe` processes), memory compression on.
-- Kernel kept in RAM, reserved storage off.
-- NTFS last-access updates off, long paths (> 260 characters) allowed.
-- Hardware-accelerated GPU scheduling. Windowed-game optimizations and variable refresh rate
-  are enabled when their settings are missing. Existing graphics choices are preserved.
-- Game Bar background recording of recent gameplay is off for the current and new profiles.
-- **Argon tweaks** (`$ArgonPerformance`): *Ultimate Performance* plan with a 5% minimum CPU state
-  plugged in and on battery, no power throttling of background processes, full CPU priority for
-  foreground apps (`SystemResponsiveness = 0`), no 8.3 short names, Game Mode off.
-  With `$ArgonPerformance = $false` Yaro keeps the Balanced plan and selects *Best Performance*
-  when plugged in.
-- MSI interrupt mode for the graphics card, NVMe and network only with the `$ForceMSI` option.
-- No network throttling for multimedia, Edge does not preload in the background.
-- Installers and drivers do not hang for 2 minutes on certificate checks
-  (short certificate download timeouts).
+Yaro provides two robust solutions:
 
-### Interface
-Dark theme, Windows 10 context menu, *Open in Notepad* for every file, *End task* on the taskbar,
-no Search/Task view/Chat/Copilot buttons, instant menus, folders open in a separate process,
-English interface with English and Russian keyboards, developer mode on, Yaro wallpaper on the desktop.
+```
+                                 ┌──────────────────────────────────────────────────┐
+                                 │      How do you want to disable Defender?        │
+                                 └─────────────────────────┬────────────────────────┘
+                                                           │
+                        ┌──────────────────────────────────┴──────────────────────────────────┐
+                        ▼                                                                     ▼
+    ┌────────────────────────────────────────┐                            ┌────────────────────────────────────────┐
+    │    METHOD 1: BEFORE SETUP (IN WIM)     │                            │     METHOD 2: ON ACTIVE RUNNING OS     │
+    ├────────────────────────────────────────┤                            ├────────────────────────────────────────┤
+    │ ✔ 100% clean, no workarounds needed    │                            │ ✔ No USB re-flashing required          │
+    │ ✔ Services NEVER start even once       │                            │ ✔ Requires toggling 2 UI switches      │
+    │ ✔ 0 processes, 0 MB RAM overhead       │                            │ ✔ Run scripts\Remove-Defender-Live.cmd │
+    └────────────────────────────────────────┘                            └────────────────────────────────────────┘
+```
 
-### Setup
-Hardware checks (TPM, Secure Boot, CPU, RAM, storage) are skipped. No EULA, network, Microsoft
-account and privacy screens; one local administrator `User` without a password; random computer name.
+### Method 1. Offline WIM Removal Before Installation (100% Clean, Recommended)
 
-## How to undo common changes
+While the Windows image is dormant on your USB drive, kernel security hooks (`WdFilter.sys`) are not loaded. Modifying the offline registry hive guarantees 100% success without access denials.
 
-Run in **Command Prompt as administrator**, then restart Windows.
+1. Flash your USB drive via Rufus (as outlined in Step 2).
+2. Right-click **`Yaro-Remove-Defender-WIM.cmd`** → **"Run as Administrator"**.
+3. The script automatically detects `sources\install.wim` on your USB stick.
+4. It performs the following unattended actions:
+   * Mounts the WIM image using DISM into a temporary directory;
+   * Loads the offline `SYSTEM` and `SOFTWARE` registry hives;
+   * Sets **`Start = 4` (Disabled)** for `WinDefend`, `WdNisSvc`, `Sense`, and `SecurityHealthService`;
+   * Disables filesystem filter drivers `WdFilter`, `WdBoot` (ELAM), and `WdNisDrv`;
+   * Applies anti-spyware policies, disables SpyNet telemetry, and removes systray hooks;
+   * Saves the changes directly into `install.wim` and cleanly unmounts.
+5. **Outcome:** Upon installing Windows from this USB drive, Defender **never runs at all**: `MsMpEng.exe` is completely absent from Task Manager, background disk scanning is eliminated, and you save 80–150 MB of RAM.
 
-| What | Command |
-|---|---|
-| Printing | `sc config Spooler start= auto` and `sc config PrintNotify start= demand` |
-| Bluetooth headset microphone | `sc config BTAGService start= demand` |
-| Built-in VPN | `sc config RasMan start= demand` and `sc config RasAuto start= demand` |
-| UAC prompts | `reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System /v ConsentPromptBehaviorAdmin /t REG_DWORD /d 5 /f` |
-| Automatic updates | `reg delete HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU /v NoAutoUpdate /f`, then Settings › Windows Update › *Resume updates* |
-| Windows 11 context menu | `reg delete "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f` |
-| Normal power plan | `powercfg /setactive 381b4222-f694-41f0-9685-ff5bb260df2e` (Balanced) |
-| Game Mode | Settings › Gaming › Game Mode |
-| Removed apps | Install them from Microsoft Store |
+### Method 2. Disabling Defender on an Already Installed Windows
 
-Defender and SmartScreen are best kept by setting `$DisableDefender = $false` /
-`$DisableSmartScreen = $false` **before** installing.
+If you have already installed Windows and wish to disable Defender without reinstalling:
+1. Run **`scripts\Remove-Defender-Live.cmd`** as Administrator.
+2. The script launches the native *Windows Security* settings window.
+3. **Manually toggle OFF two switches:**
+   * *Real-time protection*;
+   * *Tamper Protection*.
+4. Return to the command prompt and press any key: the script will immediately apply policies, stop background Defender services, and clean up startup tasks.
+5. Restart your computer.
 
-If you restore OneDrive sync after applying Yaro, the reporting task can be enabled
-in Task Scheduler. Open OneDrive and turn on startup in its settings. In a new profile, run the
-Windows OneDrive installer if needed.
+---
 
-## Troubleshooting
+## Apply to an Existing Windows Installation (Yaro-Apply.cmd)
 
-- **"Windows could not parse or process the unattend answer file"** — the file was damaged while
-  editing. Download it again and repeat only the changes you need.
-- **Setup stops with a language error** — the ISO language does not match `en-US` in the file
-  (see step 1).
-- **No internet after install** — install the network driver from the manufacturer's site.
-- **Something was not applied** — look for `FAIL` in `%SystemRoot%\Setup\Scripts\Yaro\Specialize.log`
-  and the user log. On an installed system the user log is `%LOCALAPPDATA%\Yaro\FirstLogon.log`.
-  After a clean install both logs are in the system directory.
+If you already have a running Windows 11 installation and want to debloat and optimize it:
+
+1. Click **Code → Download ZIP** on GitHub and extract the archive.
+2. Run **`Yaro-Apply.cmd`** from the user account you wish to configure (Administrator privileges required).
+3. The script creates a System Restore Point, strips pre-installed UWP apps, tunes registry latency parameters, and enables the *Ultimate Performance* power plan.
+4. Restart your computer.
+
+---
+
+## Configuration and Options (Yaro options)
+
+To customize behavior, edit the variables at the top of `autounattend.xml` (for clean installs) or inside `scripts/YaroCommon.ps1` (for `Yaro-Apply.cmd`). Set to `$true` to apply or `$false` to skip.
+
+| Option | Default | Description |
+|---|:---:|---|
+| `$DisableDefender` | `$true` | Disables Microsoft Defender and removes its taskbar tray icon. |
+| `$DisableSmartScreen` | `$true` | Disables SmartScreen checks for downloaded files and untrusted executables. |
+| `$SilentUAC` | `$true` | Elevates administrative programs without dimming the screen or prompting confirmation. |
+| `$PauseUpdates` | `$true` | Stops automatic update downloads and pauses updates until year 2077 (Ghost Pause). |
+| `$DisablePrinting` | `$true` | Disables the Print Spooler service (useful if you do not own a printer). |
+| `$DisableBtHandsFree` | `$true` | **Bluetooth Audio Protection:** disables Hands-Free telephony mode. In games with voice chat (CS2, Discord, Grounded), wireless earbuds (AirPods) stay in pristine Hi-Fi Stereo (48 kHz) rather than telephone mono. |
+| `$DisableVPN` | `$true` | Disables legacy dial-up and built-in VPN services (RasMan/RasAuto). |
+| `$ArgonPerformance` | `$true` | High-performance tuning: *Ultimate Performance* power scheme, 5% minimum CPU state (prevents idle overheating), SvcHost grouping (reduces process count from 90+ down to ~55), and 0ms menu delay. |
+| `$ForceMSI` | `$false` | Forces MSI (Message Signaled Interrupts) mode for GPU, NVMe, and network adapters to minimize DPC latency. |
+| `$SetWallpaper` | `$true` | Sets the signature minimalist Yaro wallpaper. |
+
+---
+
+## Detailed Optimizations Breakdown
+
+### Removed Bloatware & Telemetry
+* Strips all non-essential UWP packages: Clipchamp, Microsoft News, Weather, Feedback Hub, DevHome, Edge GameAssist, Cortana, Solitaire, Xbox TCUI, Office Hub, People, and consumer promo content.
+* Disables telemetry collection, WER crash reporting, CEIP diagnostics, and telemetry scheduled tasks.
+
+### System Responsiveness & Low Latency
+* **SvcHost Grouping:** sets `SvcHostSplitThresholdInKB = 0xffffffff`, consolidating fragmented svchost processes down to ~55–60.
+* **WinTrust Fix:** eliminates the notorious 2-minute freeze during driver/app installations by preventing CRL network timeouts (`State = 0x23C00`).
+* **Instant UI:** `MenuShowDelay` is reduced to 0ms for instant context menus, and `TaskbarEndTask` is enabled directly in the taskbar right-click menu.
+
+---
 
 ## Wallpapers
 
-Notebook-paper wallpapers, 1920×1080. Click a preview to open the full image, then save it.
+Yaro includes custom 1920×1080 notebook-paper wallpapers crafted for light and dark desktop themes:
 
-**Light**
+**Light Themes**
 
 <table>
 <tr>
@@ -208,7 +197,7 @@ Notebook-paper wallpapers, 1920×1080. Click a preview to open the full image, t
 </tr>
 </table>
 
-**Dark**
+**Dark Themes**
 
 <table>
 <tr>
@@ -219,7 +208,7 @@ Notebook-paper wallpapers, 1920×1080. Click a preview to open the full image, t
 <tr>
 <td align="center"><a href="assets/yaro-wallpaper-dark-forest.png"><img src="assets/yaro-wallpaper-dark-forest.png" width="280" alt="forest"></a><br><sub>forest</sub></td>
 <td align="center"><a href="assets/yaro-wallpaper-dark-cocoa.png"><img src="assets/yaro-wallpaper-dark-cocoa.png" width="280" alt="cocoa"></a><br><sub>cocoa</sub></td>
-<td align="center"><a href="assets/yaro-wallpaper-dark-paper-real.png"><img src="assets/yaro-wallpaper-dark-paper-real.png" width="280" alt="realistic black paper"></a><br><sub>realistic black paper</sub></td>
+<td align="center"><a href="assets/yaro-wallpaper-dark-paper-real.png"><img src="assets/yaro-wallpaper-dark-paper-real.png" width="280" alt="black paper"></a><br><sub>black paper</sub></td>
 </tr>
 <tr>
 <td align="center"><a href="assets/yaro-wallpaper-dark-navy.png"><img src="assets/yaro-wallpaper-dark-navy.png" width="280" alt="navy"></a><br><sub>navy</sub></td>
@@ -228,11 +217,9 @@ Notebook-paper wallpapers, 1920×1080. Click a preview to open the full image, t
 </tr>
 </table>
 
-## Notes
+---
 
-- Yaro grew out of the author's own Windows 11 build used daily on a laptop with Intel Core
-  i7-9750H and GeForce RTX 2060. The answer-file version for the official ISO is new —
-  test it in a virtual machine (Hyper-V, VirtualBox) before your main PC.
-- Not affiliated with Microsoft. Windows is a trademark of Microsoft Corporation.
-  This repository contains no Microsoft software and no activation tools.
-- License: [MIT](LICENSE).
+## License & Disclaimer
+
+* Licensed under the [MIT License](LICENSE).
+* Not affiliated with or endorsed by Microsoft Corporation. Windows is a registered trademark of Microsoft Corporation.
