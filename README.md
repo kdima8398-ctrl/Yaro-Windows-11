@@ -81,7 +81,7 @@ If you want Microsoft Defender permanently disabled without any background servi
 1. **Install drivers:** install your chipset, network, and GPU drivers (NVIDIA/AMD/Intel) directly from the manufacturer. Yaro blocks Windows Update from auto-installing generic display drivers to prevent driver collisions.
 2. **Run `Yaro-Apply.cmd` (Recommended):**
    * Download the repository (*Code → Download ZIP*, or copy the extracted folder from your USB stick) and run **`Yaro-Apply.cmd`** as Administrator.
-   * **Why this is important:** Intel software and GPU driver installers often quietly reintroduce background telemetry and tracking services. Running `Yaro-Apply.cmd` creates a clean System Restore Point, strips newly added Intel/OEM telemetry, reinforces the *Ultimate Performance* power plan, applies user profile tweaks, and sets the signature Yaro wallpaper.
+   * **Why this is important:** Intel software and GPU driver installers often quietly reintroduce background telemetry and tracking services. Running `Yaro-Apply.cmd` creates a clean System Restore Point, strips newly added Intel/OEM telemetry, reinforces the *Ultimate Performance* power plan, and applies user profile tweaks (your existing desktop wallpaper stays untouched unless you set `$SetWallpaper = $true` in `scripts/YaroCommon.ps1`).
 3. **Restore Photo Viewer & Snipping Tool (if needed):**
    * When installing with `autounattend.xml` or running `Yaro-Apply.cmd`, classic fast Windows Photo Viewer (13 image formats) is already registered automatically (`$EnablePhotoViewer = $true`).
    * If your Windows image lacked Snipping Tool or you did not apply Yaro and images do not open:
@@ -201,7 +201,7 @@ To customize behavior, edit the variables in the `Yaro options` block inside `au
 | `$RemoveIntelApp` | `$false` | Removes `AppUp.IntelGraphicsExperience` (Intel Graphics Command Center) and disables `igccservice`. *The `igfxCUIService` of the old Intel HD Graphics Control Panel (an app Yaro removes) is always set to Manual.* |
 | `$ArgonPerformance` | `$true` | High-performance tuning: *Ultimate Performance* power scheme with a 5% minimum CPU state (the CPU cools down at idle and keeps turbo headroom), Game Mode on, `SystemResponsiveness = 10` (the lowest value Windows accepts: it treats 0 as 10), no 8.3 short names. Power throttling of background apps stays with Windows: it never slows the active game, leaves it more thermal headroom and moves background work to E-cores on 12th–14th gen Intel. Laptop battery drains faster. |
 | `$ForceMSI` | `$false` | Forces MSI (Message Signaled Interrupts) mode for GPU, NVMe, and network adapters to minimize DPC latency. |
-| `$SetWallpaper` | `$true` | Sets the signature minimalist Yaro wallpaper. |
+| `$SetWallpaper` | `$true` *(USB setup)* / `$false` *(`Yaro-Apply`)* | Sets the signature minimalist Yaro wallpaper. Enabled during clean USB installation (`autounattend.xml`), disabled by default in `Yaro-Apply.cmd` (`scripts/YaroCommon.ps1`) so your existing wallpaper is preserved. |
 
 ---
 
