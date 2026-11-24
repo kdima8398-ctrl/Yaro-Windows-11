@@ -50,11 +50,14 @@ reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection"
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Systray" /v "HideSystray" /t REG_DWORD /d 1 /f >nul
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications" /v "DisableNotifications" /t REG_DWORD /d 1 /f >nul
 
-echo  [2/3] Отключение системных служб и драйверов...
-for %%S in (WinDefend WdNisSvc Sense SecurityHealthService WdFilter WdBoot WdNisDrv) do (
+echo  [2/3] Отключение системных служб и драйверов (включая MDCoreSvc и webthreatdef)...
+for %%S in (WinDefend WdNisSvc Sense MDCoreSvc webthreatdefsvc webthreatdefusersvc wscsvc SecurityHealthService WdFilter WdBoot WdNisDrv) do (
+    reg add "HKLM\SYSTEM\CurrentControlSet\Services\%%S" /v "Start" /t REG_DWORD /d 4 /f >nul 2>&1
     sc config %%S start= disabled >nul 2>&1
     sc stop %%S >nul 2>&1
 )
+reg query "HKLM\SYSTEM\CurrentControlSet\Services\webthreatdefusersvc" /v "UserServiceFlags" >nul 2>&1 && reg add "HKLM\SYSTEM\CurrentControlSet\Services\webthreatdefusersvc" /v "UserServiceFlags" /t REG_DWORD /d 0 /f >nul 2>&1
+powershell -NoProfile -Command "Get-Service 'webthreatdefusersvc*' -ErrorAction SilentlyContinue | Stop-Service -Force -ErrorAction SilentlyContinue" >nul 2>&1
 
 echo  [3/3] Удаление значка из автозагрузки...
 reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "SecurityHealth" /f >nul 2>&1

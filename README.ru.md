@@ -180,13 +180,22 @@ Yaro превращает чистую установку **официально
 
 | Переключатель | По умолчанию | Описание |
 |---|:---:|---|
-| `$DisableDefender` | `$true` | Отключает Microsoft Defender и убирает его значок из трея. |
+| `$DisableDefender` | `$true` | Отключает Microsoft Defender (включая `MDCoreSvc`, `webthreatdef*`, `wscsvc` и `Sense.Client`) и скрывает значок из трея. |
 | `$DisableSmartScreen` | `$true` | Отключает фильтр SmartScreen при запуске скачанных файлов и программ. |
 | `$SilentUAC` | `$true` | Программы запускаются с правами администратора без затемнения экрана и всплывающего окна подтверждения. |
-| `$PauseUpdates` | `$true` | Отключает автоматическое обновление и замораживает обновления до 2077 года (Ghost Pause). |
-| `$DisablePrinting` | `$true` | Отключает службу диспетчера печати (если у вас нет принтера). |
+| `$PauseUpdates` | `$true` | Отключает автоматическое обновление и замораживает обновления до 2077 года (Ghost Pause), сохраняя работу Store и `winget`. |
+| `$DisablePrinting` | `$true` | Отключает службу диспетчера печати и `PrintWorkflowUserSvc` (если у вас нет принтера). |
 | `$DisableBtHandsFree` | `$true` | **Защита звука Bluetooth:** отключает режим гарнитуры Hands-Free. В играх со звуковым чатом (CS2, Discord, Grounded) звук в AirPods/наушниках остаётся кристально чистым Hi-Fi Stereo (48 кГц). |
 | `$DisableVPN` | `$true` | Отключает встроенные устаревшие службы VPN (RasMan/RasAuto). |
+| `$DisableWindowsAI` | `$true` | Удаляет Copilot / `CoreAI`, отключает компонент `Recall` и ИИ-функции в новом Блокноте. |
+| `$DebloatEdge` | `$true` | Отключает боковую панель Copilot/Bing, Shopping Assistant, Rewards, рекомендации, автозапуск и телеметрию Edge через политики. |
+| `$RemoveOneDrive` | `$true` | Удаляет OneDrive через `OneDriveSetup.exe /uninstall` и отключает `OneSyncSvc` (дополнительно к блокировке синхронизации). |
+| `$EnablePhotoViewer` | `$true` | Регистрирует классический быстрый «Просмотр фотографий Windows» для `.jpg`, `.png`, `.bmp`, `.gif`, `.ico` и др. |
+| `$DisableBgApps` | `$true` | Запрещает UWP-приложениям из Microsoft Store работать в фоне. |
+| `$PreferIPv4` | `$true` | Задаёт приоритет IPv4 над IPv6 (`DisabledComponents = 32`), не отключая IPv6 полностью (безопасно для WSL2 и игр). |
+| `$DisableSearchIndex` | `$false` | Отключает службу индексирования `WSearch` (включайте, если используете сторонний поиск вроде Everything). |
+| `$DisableHibernation` | `$false` | Полностью отключает гибернацию (`powercfg /h off`) для экономии места на десктопах. *Быстрый запуск (`HiberbootEnabled = 0`) отключается всегда.* |
+| `$RemoveIntelApp` | `$false` | Удаляет `AppUp.IntelGraphicsExperience` (Intel Graphics Command Center) и службу `igccservice`. |
 | `$ArgonPerformance` | `$true` | Комплекс твиков производительности: план *Ultimate Performance*, минимальная частота CPU 5% (процессор не перегревается в простое), объединение процессов SvcHost (снижение с 90+ до ~55 процессов), ускорение отклика окон `MenuShowDelay = 0`. |
 | `$ForceMSI` | `$false` | Перевод видеокарты, накопителя NVMe и сетевых карт в режим прерываний MSI (Message Signaled Interrupts) для снижения DPC-задержек. |
 | `$SetWallpaper` | `$true` | Автоматическая установка фирменных минималистичных обоев Yaro. |
@@ -195,14 +204,15 @@ Yaro превращает чистую установку **официально
 
 ## Что именно меняет и оптимизирует Yaro
 
-### Удаляемый софт и мусор
-* Полностью вырезаются рекламные и партнерские приложения: Clipchamp, Microsoft News, Weather, Feedback Hub, DevHome, Edge GameAssist, Cortana, Solitaire, Xbox TCUI, Office Hub, People и потребительские промо-пакеты.
-* Отключен сбор телеметрии, отправка отчетов об ошибках WER, CEIP (Customer Experience Improvement) и диагностические задачи планировщика.
+### Удаляемый софт, ИИ и мусор
+* Полностью вырезаются рекламные и партнерские приложения: Clipchamp, Microsoft News, Weather, Feedback Hub, DevHome, Bing Search, Copilot / `CoreAI`, Edge GameAssist, Cortana, Solitaire, Office Hub, People, новый Outlook и потребительские промо-пакеты.
+* Блокируется скрытый самовозврат `Outlook` и `DevHome` планировщиком `UScheduler_Oobe` после выхода в сеть, очищаются закрепления меню Пуск при чистой установке и скрываются рекламные баннеры аккаунта Microsoft.
+* Отключены сбор телеметрии (в т.ч. `AdvertisingInfo`, `TIPC`, `TailoredExperiences`, `Start_TrackProgs`, `Siuf`), служба `whesvc`, геолокация `lfsvc`, отправка отчётов WER (`QueueReporting`, при этом локальные дампы сохраняются) и задачи телеметрии `Flighting` / `CEIP` / `Diagnosis`.
 
-### Скорость и отклик системы
+### Скорость, отклик и интерфейс
 * **SvcHost Grouping:** порог разделения процессов увеличен (`SvcHostSplitThresholdInKB = 0xffffffff`), что сокращает число системных процессов почти в два раза.
-* **WinTrust Fix:** исправлена 2-минутная задержка при установке драйверов и программ из-за таймаутов проверки сертификатов (`State = 0x23C00`).
-* **Моментальный интерфейс:** задержка анимации меню `MenuShowDelay` выставлена на 0 мс, добавлена кнопка «Завершить задачу» (TaskbarEndTask) в панель задач.
+* **WinTrust Fix:** исправлена 2-минутная задержка при установке драйверов и программ из-за таймаутов проверки сертификатов (`State = 0x23C00` + `ChainEngine` 200/500 мс).
+* **Проводник и комфорт:** `MenuShowDelay = 0` мс, кнопка «Завершить задачу» на панели задач (`TaskbarEndTask`), классическое контекстное меню Windows 10, открытие на «Этот компьютер» (`LaunchTo = 1`), скрыты «Главная» и «Галерея», всегда видны расширения файлов (`HideFileExt = 0`), отключено залипание клавиш (`StickyKeys = 506`), отключён Быстрый запуск (`HiberbootEnabled = 0`) и включён подробный BSoD.
 
 ---
 

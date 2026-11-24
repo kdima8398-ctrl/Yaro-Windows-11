@@ -80,6 +80,7 @@ $Apps = @(
   'Microsoft.OutlookForWindows', 'Microsoft.Todos', 'Microsoft.People', 'Microsoft.GetHelp',
   'Microsoft.WindowsSoundRecorder', 'MicrosoftCorporationII.QuickAssist'
 )
+if ($RemoveIntelApp) { $Apps += 'AppUp.IntelGraphicsExperience' }
 try {
   $provisioned = Get-AppxProvisionedPackage -Online -ErrorAction Stop
 } catch { Write-YaroFailure "provisioned app inventory: $($_.Exception.Message)" }
@@ -106,13 +107,15 @@ if ($Live) {
       catch { Write-YaroFailure "remove $($package.Name): $($_.Exception.Message)" }
     }
   }
+  Remove-YaroCoreAI $UserSid.Value
 }
 
 # ---------- 2. Windows capabilities (Features on Demand) ----------
 "== Capabilities"
-$Caps = 'Hello.Face*', 'Browser.InternetExplorer*', 'App.StepsRecorder*', 'MathRecognizer*',
-        'Media.WindowsMediaPlayer*', 'Language.Handwriting*', 'Language.Speech*', 'Print.Fax.Scan*',
-        'OneCoreUAP.OneSync*', '*Wallpaper*', 'App.Support.QuickAssist*'
+$Caps = @('Hello.Face*', 'Browser.InternetExplorer*', 'App.StepsRecorder*', 'MathRecognizer*',
+          'Media.WindowsMediaPlayer*', 'Language.Handwriting*', 'Language.Speech*', 'Print.Fax.Scan*',
+          'OneCoreUAP.OneSync*', '*Wallpaper*', 'App.Support.QuickAssist*')
+if ($DisableDefender) { $Caps += 'Microsoft.Windows.Sense.Client*' }
 try {
   $capabilities = Get-WindowsCapability -Online -ErrorAction Stop
 } catch { Write-YaroFailure "capability inventory: $($_.Exception.Message)" }
@@ -128,8 +131,9 @@ $capabilities | Where-Object {
 
 # ---------- 3. Optional features ----------
 "== Optional features"
-$disableFeatures = 'SMB1Protocol', 'MicrosoftWindowsPowerShellV2', 'MicrosoftWindowsPowerShellV2Root',
-                   'Printing-XPSServices-Features', 'WorkFolders-Client', 'MSRDC-Infrastructure', 'MediaPlayback'
+$disableFeatures = @('SMB1Protocol', 'MicrosoftWindowsPowerShellV2', 'MicrosoftWindowsPowerShellV2Root',
+                     'Printing-XPSServices-Features', 'WorkFolders-Client', 'MSRDC-Infrastructure', 'MediaPlayback')
+if ($DisableWindowsAI) { $disableFeatures += 'Recall' }
 $features = @{}
 try {
   foreach ($feature in (Get-WindowsOptionalFeature -Online -ErrorAction Stop)) {
@@ -170,17 +174,18 @@ if ($features['NetFx3'] -in 'Disabled', 'DisabledWithPayloadRemoved') {
 # ---------- 4. Services ----------
 "== Services"
 foreach ($s in 'DiagTrack', 'dmwappushservice', 'MapsBroker', 'RetailDemo', 'CDPSvc', 'CDPUserSvc',
-               'TermService', 'WSAIFabricSvc', 'PcaSvc', 'InventorySvc', 'TrkWks') { Svc $s 4 }
+               'TermService', 'WSAIFabricSvc', 'PcaSvc', 'InventorySvc', 'TrkWks',
+               'whesvc', 'lfsvc', 'SharedAccess', 'PhoneSvc', 'WalletService') { Svc $s 4 }
 foreach ($s in 'WerSvc', 'XblAuthManager', 'XblGameSave', 'XboxNetApiSvc', 'XboxGipSvc', 'RmSvc') { Svc $s 3 }
 foreach ($s in 'SysMain', 'DPS') { Svc $s 2 }
-# A disabled per-user template still creates a service instance at each sign-in.
-$cdp = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Services\CDPUserSvc' -ErrorAction SilentlyContinue
-if ($cdp.Start -eq 4 -and $cdp.UserServiceFlags -eq 3) {
-  Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Services\CDPUserSvc' 'UserServiceFlags' '0'
-}
-if ($DisablePrinting)    { Svc 'Spooler' 4; Svc 'PrintNotify' 4 }
+if ($DisablePrinting)    { Svc 'Spooler' 4; Svc 'PrintNotify' 4; Svc 'PrintWorkflowUserSvc' 4 }
 if ($DisableBtHandsFree) { Svc 'BTAGService' 4 }
 if ($DisableVPN)         { Svc 'RasMan' 4; Svc 'RasAuto' 4 }
+if ($RemoveOneDrive)     { Svc 'OneSyncSvc' 4 }
+if ($DisableSearchIndex) { Svc 'WSearch' 4; if ($Live) { & sc.exe stop WSearch *> $null } }
+if ($RemoveIntelApp)     { Svc 'igccservice' 4 }
+# A disabled per-user template still creates a service instance at each sign-in if UserServiceFlags is 3.
+foreach ($tmpl in 'CDPUserSvc', 'PrintWorkflowUserSvc', 'OneSyncSvc') { Clear-YaroUserServiceTemplate $tmpl }
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server' 'fDenyTSConnections' '1'
 
 # ---------- 5. Setup, updates, telemetry, privacy ----------
@@ -206,6 +211,24 @@ Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System' 'Publish
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System' 'UploadUserActivities' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System' 'EnableCdp' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableWindowsConsumerFeatures' '1'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableConsumerAccountStateContent' '1'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableCloudOptimizedContent' '1'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\PushToInstall' 'DisablePushToInstall' '1'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\MRT' 'DontOfferThroughWUAU' '1'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Teams' 'DisableInstallation' '1'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Mail' 'PreventRun' '1'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Chat' 'ChatIcon' '3'
+if (-not $Live) {
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Start' 'ConfigureStartPins' '{"pinnedList": [{}]}' 'REG_SZ'
+}
+# Prevent Windows Update OOBE orchestrator from silently re-installing Outlook and Dev Home
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate' 'workCompleted' '1'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler\OutlookUpdate' 'workCompleted' '1'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler\DevHomeUpdate' 'workCompleted' '1'
+foreach ($oobeTask in 'OutlookUpdate', 'DevHomeUpdate') {
+  $oobePath = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe\$oobeTask"
+  if (Test-Path -LiteralPath $oobePath) { Remove-Item -LiteralPath $oobePath -Recurse -Force -ErrorAction SilentlyContinue }
+}
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization' 'DODownloadMode' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Connect' 'AllowProjectionToPC' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\LiveCaptions' 'AllowLiveCaptions' '0'
@@ -214,7 +237,12 @@ Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration' 'Status' '0'
 Set-YaroRegistryValue 'HKLM\SYSTEM\Maps' 'AutoUpdateEnabled' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Dsh' 'AllowNewsAndInterests' '0'
-Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1'
+if ($DisableWindowsAI) {
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1'
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\WindowsNotepad' 'DisableAIFeatures' '1'
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI' 'DisableAIDataAnalysis' '1'
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI' 'AllowRecallEnablement' '0'
+}
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\GameDVR' 'AllowGameDVR' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\StorageSense' 'AllowStorageSenseGlobal' '0'
 $oneDrivePolicy = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive'
@@ -222,8 +250,35 @@ Set-YaroRegistryValue $oneDrivePolicy 'DisableFileSyncNGSC' '1'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\WindowsInkWorkspace' 'AllowWindowsInkWorkspace' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\PassportForWork' 'Enabled' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoDriveTypeAutoRun' '255'
-Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Edge' 'StartupBoostEnabled' '0'
-Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Edge' 'BackgroundModeEnabled' '0'
+if ($DebloatEdge) {
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate' 'CreateDesktopShortcutDefault' '0'
+  $edgePol = 'HKLM\SOFTWARE\Policies\Microsoft\Edge'
+  Set-YaroRegistryValue $edgePol 'StartupBoostEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'BackgroundModeEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'HubsSidebarEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'PersonalizationReportingEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'ShowRecommendationsEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'HideFirstRunExperience' '1'
+  Set-YaroRegistryValue $edgePol 'UserFeedbackAllowed' '0'
+  Set-YaroRegistryValue $edgePol 'ConfigureDoNotTrack' '1'
+  Set-YaroRegistryValue $edgePol 'AlternateErrorPagesEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'EdgeCollectionsEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'EdgeShoppingAssistantEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'MicrosoftEdgeInsiderPromotionEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'ShowMicrosoftRewards' '0'
+  Set-YaroRegistryValue $edgePol 'WebWidgetAllowed' '0'
+  Set-YaroRegistryValue $edgePol 'DiagnosticData' '0'
+  Set-YaroRegistryValue $edgePol 'EdgeAssetDeliveryServiceEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'WalletDonationEnabled' '0'
+  Set-YaroRegistryValue $edgePol 'DefaultBrowserSettingsCampaignEnabled' '0'
+  Set-YaroRegistryValue "$edgePol\ExtensionInstallBlocklist" '1' 'ofefcgjbeghpigppfmkologfjadafddi' 'REG_SZ'
+}
+if ($EnablePhotoViewer) {
+  $pvKey = 'HKLM\SOFTWARE\Microsoft\Windows Photo Viewer\Capabilities\FileAssociations'
+  foreach ($ext in '.bmp', '.dib', '.gif', '.ico', '.jfif', '.jpe', '.jpeg', '.jpg', '.jxr', '.png', '.tif', '.tiff', '.wdp') {
+    Set-YaroRegistryValue $pvKey $ext 'PhotoViewer.FileAssoc.Tiff' 'REG_SZ'
+  }
+}
 
 # ---------- 6. Search (no web results, no WebView2 in Search) ----------
 "== Registry: search"
@@ -261,7 +316,10 @@ Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy' 'Verifie
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control' 'SvcHostSplitThresholdInKB' '0xffffffff'
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control' 'WaitToKillServiceTimeout' '5000' 'REG_SZ'
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager' 'DisableWpbtExecution' '1'
+Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '0'
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' 'DisablePagingExecutive' '1'
+Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisplayParameters' '1'
+Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\CrashControl' 'DisableEmoticon' '1'
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard' 'EnableVirtualizationBasedSecurity' '0'
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' 'Enabled' '0'
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers' 'HwSchMode' '2'
@@ -269,6 +327,17 @@ Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\FileSystem' 'LongPa
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager' 'ShippedWithReserves' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowDevelopmentWithoutDevLicense' '1'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile' 'NetworkThrottlingIndex' '0xffffffff'
+if ($PreferIPv4) {
+  $tcpip6Key = 'HKLM\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters'
+  $curComp = [Microsoft.Win32.Registry]::GetValue("HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters", 'DisabledComponents', 0)
+  $newComp = if ($curComp -is [int]) { $curComp -bor 32 } else { 32 }
+  Set-YaroRegistryValue $tcpip6Key 'DisabledComponents' ([string]$newComp)
+}
+if ($DisableHibernation) {
+  Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HibernateEnabled' '0'
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '0'
+  & powercfg.exe /hibernate off *> $null
+}
 & fsutil.exe behavior set disablelastaccess 1 *> $null
 if ($LASTEXITCODE -ne 0) { Write-YaroFailure "set NTFS last-access behavior (exit $LASTEXITCODE)" }
 & dism.exe /Online /Set-ReservedStorageState /State:Disabled *> $null
@@ -314,22 +383,26 @@ if ($DisableSmartScreen) {
 if ($DisableDefender) {
   $d = 'HKLM\SOFTWARE\Policies\Microsoft\Windows Defender'
   Set-YaroRegistryValue $d 'DisableAntiSpyware' '1'
+  Set-YaroRegistryValue $d 'DisableAntiVirus' '1'
   Set-YaroRegistryValue "$d\Real-Time Protection" 'DisableRealtimeMonitoring' '1'
   Set-YaroRegistryValue "$d\Real-Time Protection" 'DisableBehaviorMonitoring' '1'
   Set-YaroRegistryValue "$d\Real-Time Protection" 'DisableOnAccessProtection' '1'
+  Set-YaroRegistryValue "$d\Real-Time Protection" 'DisableScanOnRealtimeEnable' '1'
+  Set-YaroRegistryValue "$d\Real-Time Protection" 'DisableIOAVProtection' '1'
   Set-YaroRegistryValue "$d\Spynet" 'SpynetReporting' '0'
   Set-YaroRegistryValue "$d\Spynet" 'SubmitSamplesConsent' '2'
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Systray' 'HideSystray' '1'
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications' 'DisableNotifications' '1'
   # While Defender runs, Windows locks its services (even for SYSTEM during setup).
   $locked = @()
-  foreach ($s in 'WinDefend', 'WdNisSvc', 'Sense', 'WdFilter', 'WdBoot', 'WdNisDrv') {
+  foreach ($s in 'WinDefend', 'WdNisSvc', 'Sense', 'MDCoreSvc', 'webthreatdefsvc', 'webthreatdefusersvc', 'wscsvc', 'SecurityHealthService', 'WdFilter', 'WdBoot', 'WdNisDrv') {
     $subkey = "SYSTEM\CurrentControlSet\Services\$s"
     if (-not (Test-Path -LiteralPath "HKLM:\$subkey" -ErrorAction SilentlyContinue)) { continue }
     if ((Get-ItemProperty -LiteralPath "HKLM:\$subkey" -Name Start -ErrorAction SilentlyContinue).Start -eq 4) { continue }
     try { [Microsoft.Win32.Registry]::SetValue("HKEY_LOCAL_MACHINE\$subkey", 'Start', 4, [Microsoft.Win32.RegistryValueKind]::DWord) }
     catch { $locked += $s }
   }
+  Clear-YaroUserServiceTemplate 'webthreatdefusersvc'
   if ($locked) { "  NOTE Windows protects the Defender services ($($locked -join ', ')); they stay as they are" }
   # With Tamper Protection on, Defender ignores the policies above.
   $tamper = $null
@@ -376,6 +449,24 @@ try {
              '\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector',
              '\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticResolver',
              '\Microsoft\Windows\Maintenance\WinSAT',
+             '\Microsoft\Windows\Flighting\FeatureConfig\UsageDataReporting',
+             '\Microsoft\Windows\Flighting\FeatureConfig\UsageDataFlushing',
+             '\Microsoft\Windows\Flighting\FeatureConfig\UsageDataReceiver',
+             '\Microsoft\Windows\Flighting\FeatureConfig\GovernedFeatureUsageProcessing',
+             '\Microsoft\Windows\Flighting\FeatureConfig\ReconcileConfigs',
+             '\Microsoft\Windows\Flighting\FeatureConfig\ReconcileFeatures',
+             '\Microsoft\Windows\Flighting\FeatureConfig\SafeguardsReconciliation',
+             '\Microsoft\Windows\Flighting\OneSettings\RefreshCache',
+             '\Microsoft\Windows\Feedback\Siuf\DmClient',
+             '\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload',
+             '\Microsoft\Windows\Windows Error Reporting\QueueReporting',
+             '\Microsoft\Windows\Diagnosis\RecommendedTroubleshootingScanner',
+             '\Microsoft\Windows\Diagnosis\Scheduled',
+             '\Microsoft\Windows\Diagnosis\UnexpectedCodepath',
+             '\Microsoft\Windows\Shell\FamilySafetyMonitor',
+             '\Microsoft\Windows\Shell\FamilySafetyRefreshTask',
+             '\Microsoft\Windows\Maps\MapsToastTask',
+             '\Microsoft\Windows\RetailDemo\CleanupOfflineContent',
              '\USER_ESRV_SVC_QUEENCREEK'
   foreach ($path in $taskPaths) {
     try {
@@ -444,36 +535,8 @@ $defaultHive = Join-Path ([Environment]::ExpandEnvironmentVariables($defaultProf
 & reg.exe load 'HKU\YaroDefault' $defaultHive *> $null
 if ($LASTEXITCODE -eq 0) {
   try {
-    Set-YaroRegistryValue "HKU\YaroDefault\Control Panel\Desktop" 'MenuShowDelay' '0' 'REG_SZ'
-    Set-YaroRegistryValue "HKU\YaroDefault\Control Panel\Desktop" 'AutoEndTasks' '0' 'REG_SZ'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings" 'TaskbarEndTask' '1' 'REG_DWORD'
-    Set-YaroGraphicsDefaults 'HKU\YaroDefault'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" 'AppsUseLightTheme' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" 'SystemUsesLightTheme' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" 'SeparateProcess' '1' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" 'TaskbarMn' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" 'ShowTaskViewButton' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" 'ShowCopilotButton' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\Search" 'SearchboxTaskbarMode' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\Search" 'BingSearchEnabled' '0' 'REG_DWORD'
+    Set-YaroUserSettings 'HKU\YaroDefault'
     Set-YaroUserPolicies 'HKU\YaroDefault'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\WinTrust\Trust Providers\Software Publishing" 'State' '0x00023c00' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\System\GameConfigStore" 'GameDVR_Enabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\GameDVR" 'HistoricalCaptureEnabled' '0' 'REG_DWORD'
-    if ($ArgonPerformance) { Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\GameBar" 'AutoGameModeEnabled' '0' 'REG_DWORD' }
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'ContentDeliveryAllowed' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'OemPreInstalledAppsEnabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'PreInstalledAppsEnabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'PreInstalledAppsEverEnabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SilentInstalledAppsEnabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SoftLandingEnabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SystemPaneSuggestionsEnabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-310093Enabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-338388Enabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-338389Enabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-338393Enabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-353694Enabled' '0' 'REG_DWORD'
-    Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-353696Enabled' '0' 'REG_DWORD'
     $wallpaperRunOnce = 'HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\RunOnce'
     $wallpaperCommand = 'powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}"' -f (Join-Path $YaroLogDir 'SetWallpaper.ps1')
     if ($SetWallpaper -and (Test-Path -LiteralPath $YaroWallpaperPath)) {

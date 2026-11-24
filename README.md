@@ -180,13 +180,22 @@ To customize behavior, edit the variables at the top of `autounattend.xml` (for 
 
 | Option | Default | Description |
 |---|:---:|---|
-| `$DisableDefender` | `$true` | Disables Microsoft Defender and removes its taskbar tray icon. |
+| `$DisableDefender` | `$true` | Disables Microsoft Defender (including `MDCoreSvc`, `webthreatdef*`, `wscsvc`, and `Sense.Client`) and hides its tray icon. |
 | `$DisableSmartScreen` | `$true` | Disables SmartScreen checks for downloaded files and untrusted executables. |
 | `$SilentUAC` | `$true` | Elevates administrative programs without dimming the screen or prompting confirmation. |
-| `$PauseUpdates` | `$true` | Stops automatic update downloads and pauses updates until year 2077 (Ghost Pause). |
-| `$DisablePrinting` | `$true` | Disables the Print Spooler service (useful if you do not own a printer). |
+| `$PauseUpdates` | `$true` | Stops automatic update downloads and pauses updates until year 2077 (Ghost Pause), keeping Microsoft Store and `winget` working. |
+| `$DisablePrinting` | `$true` | Disables the Print Spooler service and `PrintWorkflowUserSvc` (useful if you do not own a printer). |
 | `$DisableBtHandsFree` | `$true` | **Bluetooth Audio Protection:** disables Hands-Free telephony mode. In games with voice chat (CS2, Discord, Grounded), wireless earbuds (AirPods) stay in pristine Hi-Fi Stereo (48 kHz) rather than telephone mono. |
 | `$DisableVPN` | `$true` | Disables legacy dial-up and built-in VPN services (RasMan/RasAuto). |
+| `$DisableWindowsAI` | `$true` | Removes Copilot / `CoreAI`, disables the `Recall` optional feature, and turns off AI features in Notepad. |
+| `$DebloatEdge` | `$true` | Disables Edge sidebar, Copilot/Bing integrations, Shopping Assistant, Rewards, recommendations, startup boost, and telemetry via policies. |
+| `$RemoveOneDrive` | `$true` | Uninstalls OneDrive via `OneDriveSetup.exe /uninstall` and disables `OneSyncSvc` (in addition to blocking sync policies). |
+| `$EnablePhotoViewer` | `$true` | Registers classic fast Windows Photo Viewer file associations (`.jpg`, `.png`, `.bmp`, `.gif`, `.ico`, etc.). |
+| `$DisableBgApps` | `$true` | Prevents Microsoft Store UWP apps from running in the background. |
+| `$PreferIPv4` | `$true` | Prefers IPv4 over IPv6 (`DisabledComponents = 32`) without breaking IPv6 for WSL2 or games. |
+| `$DisableSearchIndex` | `$false` | Disables the `WSearch` indexing service (recommended only if using a third-party search tool like Everything). |
+| `$DisableHibernation` | `$false` | Fully disables hibernation (`powercfg /h off`) to save SSD space on desktops. *Fast Startup (`HiberbootEnabled = 0`) is always disabled.* |
+| `$RemoveIntelApp` | `$false` | Removes `AppUp.IntelGraphicsExperience` (Intel Graphics Command Center) and disables `igccservice`. |
 | `$ArgonPerformance` | `$true` | High-performance tuning: *Ultimate Performance* power scheme, 5% minimum CPU state (prevents idle overheating), SvcHost grouping (reduces process count from 90+ down to ~55), and 0ms menu delay. |
 | `$ForceMSI` | `$false` | Forces MSI (Message Signaled Interrupts) mode for GPU, NVMe, and network adapters to minimize DPC latency. |
 | `$SetWallpaper` | `$true` | Sets the signature minimalist Yaro wallpaper. |
@@ -195,14 +204,15 @@ To customize behavior, edit the variables at the top of `autounattend.xml` (for 
 
 ## Detailed Optimizations Breakdown
 
-### Removed Bloatware & Telemetry
-* Strips all non-essential UWP packages: Clipchamp, Microsoft News, Weather, Feedback Hub, DevHome, Edge GameAssist, Cortana, Solitaire, Xbox TCUI, Office Hub, People, and consumer promo content.
-* Disables telemetry collection, WER crash reporting, CEIP diagnostics, and telemetry scheduled tasks.
+### Removed Bloatware, AI & Telemetry
+* Strips all non-essential UWP packages: Clipchamp, Microsoft News, Weather, Feedback Hub, DevHome, Bing Search, Copilot / `CoreAI`, Edge GameAssist, Cortana, Solitaire, Office Hub, People, new Outlook, and consumer promo content.
+* Prevents `UScheduler_Oobe` from silently reinstalling Outlook and Dev Home when connected to the internet, clears Start pins on clean installs, and suppresses Microsoft Account promotional prompts.
+* Disables user telemetry (`AdvertisingInfo`, `TIPC`, `TailoredExperiences`, `Start_TrackProgs`, `Siuf`), `whesvc`, `lfsvc` geolocation service, WER upload tasks (`QueueReporting`, keeping local dumps functional), and `Flighting` / `CEIP` / `Diagnosis` telemetry tasks.
 
-### System Responsiveness & Low Latency
+### System Responsiveness, Latency & Explorer UX
 * **SvcHost Grouping:** sets `SvcHostSplitThresholdInKB = 0xffffffff`, consolidating fragmented svchost processes down to ~55–60.
-* **WinTrust Fix:** eliminates the notorious 2-minute freeze during driver/app installations by preventing CRL network timeouts (`State = 0x23C00`).
-* **Instant UI:** `MenuShowDelay` is reduced to 0ms for instant context menus, and `TaskbarEndTask` is enabled directly in the taskbar right-click menu.
+* **WinTrust Fix:** eliminates the notorious 2-minute freeze during driver/app installations by preventing CRL network timeouts (`State = 0x23C00` + `ChainEngine` 200/500ms).
+* **Explorer & UX:** `MenuShowDelay = 0` ms, `TaskbarEndTask`, classic Windows 10 context menu, Explorer opens to "This PC" (`LaunchTo = 1`), hides Home & Gallery, shows file extensions (`HideFileExt = 0`), disables Sticky Keys prompt (`506`), disables Fast Startup (`HiberbootEnabled = 0`), and enables verbose BSoD crash info.
 
 ---
 

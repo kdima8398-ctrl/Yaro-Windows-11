@@ -21,8 +21,8 @@ echo ===========================================================================
 echo   YARO — ОФЛАЙН ВЫРЕЗАНИЕ / ОТКЛЮЧЕНИЕ DEFENDER ИЗ ОБРАЗА WINDOWS 11
 echo ============================================================================
 echo  Этот скрипт модифицирует файл install.wim ДО установки системы.
-echo  Все службы (WinDefend, WdNisSvc, Sense, SecurityHealth) и драйверы
-echo  перехвата (WdFilter, WdBoot) отключаются в системном кусте реестра.
+echo  Все службы (WinDefend, WdNisSvc, Sense, MDCoreSvc, webthreatdef*, wscsvc,
+echo  SecurityHealth) и драйверы (WdFilter, WdBoot, WdNisDrv) отключаются в реестре.
 echo.
 echo  В результате при установке Windows:
 echo   * Defender НЕ запустится ни разу (0 процессов, 0 нагрузки на CPU/диск);
@@ -143,16 +143,16 @@ if %errorlevel% neq 0 (
 echo.
 echo [3/5] Отключение всех служб, драйверов перехвата и компонентов Defender...
 
-:: Службы: Start = 4 (Disabled)
-reg add "HKLM\YARO_SYS\ControlSet001\Services\WinDefend" /v "Start" /t REG_DWORD /d 4 /f >nul
-reg add "HKLM\YARO_SYS\ControlSet001\Services\WdNisSvc" /v "Start" /t REG_DWORD /d 4 /f >nul
-reg add "HKLM\YARO_SYS\ControlSet001\Services\Sense" /v "Start" /t REG_DWORD /d 4 /f >nul
-reg add "HKLM\YARO_SYS\ControlSet001\Services\SecurityHealthService" /v "Start" /t REG_DWORD /d 4 /f >nul
+:: Службы: Start = 4 (Disabled), включая новые службы Win11 24H2/25H2 (MDCoreSvc, webthreatdef*, wscsvc)
+for %%S in (WinDefend WdNisSvc Sense MDCoreSvc webthreatdefsvc webthreatdefusersvc wscsvc SecurityHealthService) do (
+    reg add "HKLM\YARO_SYS\ControlSet001\Services\%%S" /v "Start" /t REG_DWORD /d 4 /f >nul
+)
+reg query "HKLM\YARO_SYS\ControlSet001\Services\webthreatdefusersvc" /v "UserServiceFlags" >nul 2>&1 && reg add "HKLM\YARO_SYS\ControlSet001\Services\webthreatdefusersvc" /v "UserServiceFlags" /t REG_DWORD /d 0 /f >nul
 
 :: Драйверы уровня ядра (перехват файлов и ранняя загрузка)
-reg add "HKLM\YARO_SYS\ControlSet001\Services\WdFilter" /v "Start" /t REG_DWORD /d 4 /f >nul
-reg add "HKLM\YARO_SYS\ControlSet001\Services\WdBoot" /v "Start" /t REG_DWORD /d 4 /f >nul
-reg add "HKLM\YARO_SYS\ControlSet001\Services\WdNisDrv" /v "Start" /t REG_DWORD /d 4 /f >nul
+for %%D in (WdFilter WdBoot WdNisDrv) do (
+    reg add "HKLM\YARO_SYS\ControlSet001\Services\%%D" /v "Start" /t REG_DWORD /d 4 /f >nul
+)
 
 :: Политики отключения антивируса и защиты реального времени
 reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender" /v "DisableAntiSpyware" /t REG_DWORD /d 1 /f >nul
