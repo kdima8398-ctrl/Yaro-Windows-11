@@ -14,7 +14,7 @@ This repository contains **no pirated Windows files**. You download Windows dire
 > By default Yaro **disables Microsoft Defender, SmartScreen, UAC prompts, automatic updates,
 > print spooler, Bluetooth headset hands-free mic and built-in VPN** and activates the
 > *Ultimate Performance* power plan (faster battery drain on laptops). Read
-> [What Yaro turns off](#what-yaro-turns-off) and [Options](#configuration-and-options) before installing.
+> [What Yaro changes](#detailed-optimizations-breakdown) and [Options](#configuration-and-options-yaro-options) before installing.
 > Try it in a virtual machine first. Use at your own risk.
 
 ---
@@ -24,7 +24,7 @@ This repository contains **no pirated Windows files**. You download Windows dire
 | File | Description |
 |---|---|
 | `autounattend.xml` | Primary answer file for fully unattended clean install from a USB stick. |
-| `Yaro-Remove-Defender-WIM.cmd` | **Automated offline Defender removal script** directly in `install.wim` BEFORE setup. |
+| `Yaro-Remove-Defender-WIM.cmd` | **Automated offline Defender disabler** directly in `install.wim` BEFORE setup (system files stay intact). |
 | `Yaro-Apply.cmd` | Applies Yaro debloat and optimizations to an existing, already installed Windows 11. |
 | `scripts/Remove-Defender-Live.cmd` | Step-by-step Defender disabler on an active, running Windows system. |
 | `scripts/Specialize.ps1` | System phase: removes UWP bloatware, tunes services, optimizes registry and networking. |
@@ -61,10 +61,10 @@ Setup takes around 10–15 minutes and is completely automated.
    *(The path must be `E:\autounattend.xml`, not inside any subfolder).*
 3. *(Optional)* Open `autounattend.xml` in Notepad if you wish to adjust your time zone (default: `FLE Standard Time`), local username (default: `User`), or toggle specific tweaks (`Yaro options` block).
 
-### Step 4. (Optional, Recommended) Remove Defender BEFORE setup
+### Step 4. (Optional, Recommended) Disable Defender BEFORE setup
 If you want Microsoft Defender permanently disabled without any background services or CPU load:
 1. Run **`Yaro-Remove-Defender-WIM.cmd`** as Administrator.
-2. The script will automatically locate `sources\install.wim` on your USB stick, pick the **Windows 11 Pro** edition (the one `autounattend.xml` installs) and disable Defender services and kernel drivers directly in the offline image.
+2. The script will automatically locate a writable `sources\install.wim` on your USB stick (skipping read-only mounted ISO drives), pick **Windows 11 Pro** (the edition `autounattend.xml` installs), and disable Defender services, kernel drivers, and `TamperProtection` directly in the offline image.
 3. See [Complete Windows Defender Removal Guide](#complete-windows-defender-removal-guide) below.
 
 ### Step 5. Boot from USB and install
@@ -83,7 +83,8 @@ If you want Microsoft Defender permanently disabled without any background servi
    * Download the repository (*Code → Download ZIP*, or copy the extracted folder from your USB stick) and run **`Yaro-Apply.cmd`** as Administrator.
    * **Why this is important:** Intel software and GPU driver installers often quietly reintroduce background telemetry and tracking services. Running `Yaro-Apply.cmd` creates a clean System Restore Point, strips newly added Intel/OEM telemetry, reinforces the *Ultimate Performance* power plan, applies user profile tweaks, and sets the signature Yaro wallpaper.
 3. **Restore Photo Viewer & Snipping Tool (if needed):**
-   * If your Windows edition lacked these apps or you installed offline without initial Store provisioning:
+   * When installing with `autounattend.xml` or running `Yaro-Apply.cmd`, classic fast Windows Photo Viewer (13 image formats) is already registered automatically (`$EnablePhotoViewer = $true`).
+   * If your Windows image lacked Snipping Tool or you did not apply Yaro and images do not open:
      * **Classic fast Windows Photo Viewer** (PowerShell as Admin):
        ```powershell
        $k = 'HKLM:\SOFTWARE\Microsoft\Windows Photo Viewer\Capabilities\FileAssociations'; foreach ($e in '.jpg','.jpeg','.png','.bmp','.gif','.tiff') { Set-ItemProperty -Path $k -Name $e -Value 'PhotoViewer.FileAssoc.Tiff' }
@@ -134,21 +135,22 @@ Yaro provides two robust solutions:
     └────────────────────────────────────────┘                            └────────────────────────────────────────┘
 ```
 
-### Method 1. Offline WIM Removal Before Installation (100% Clean, Recommended)
+### Method 1. Offline WIM Disabling Before Installation (100% Clean, Recommended)
 
-While the Windows image is dormant on your USB drive, kernel security hooks (`WdFilter.sys`) are not loaded. Modifying the offline registry hive guarantees 100% success without access denials.
+While the Windows image is dormant on your USB drive, kernel security hooks (`WdFilter.sys`) are not loaded. Modifying the offline registry hive guarantees 100% success, while Defender's system files remain intact for `sfc` integrity.
 
 1. Flash your USB drive via Rufus (as outlined in Step 2).
 2. Right-click **`Yaro-Remove-Defender-WIM.cmd`** → **"Run as Administrator"**.
-3. The script automatically detects `sources\install.wim` on your USB stick. The edition is chosen automatically: **Windows 11 Pro only** (Pro N, Pro Education and Pro for Workstations are skipped). If the image has no Pro edition, nothing is changed.
+3. The script automatically locates a writable `sources\install.wim` on your USB stick (skipping read-only mounted ISO drives) or prompts for a path. The edition is chosen automatically: **Windows 11 Pro only** (`EditionId = Professional`, `Build >= 22000`, works on renamed Pro images too; Home, Pro N, Pro Education, and Pro for Workstations are skipped). If the image has no Pro edition, nothing is changed.
 4. It performs the following unattended actions:
    * Mounts the WIM image using DISM into a temporary directory;
    * Loads the offline `SYSTEM` and `SOFTWARE` registry hives;
-   * Sets **`Start = 4` (Disabled)** for `WinDefend`, `WdNisSvc`, `Sense`, `MDCoreSvc`, `webthreatdefsvc`, `webthreatdefusersvc`, `wscsvc`, and `SecurityHealthService` (only those present in the image);
-   * Disables filesystem filter drivers `WdFilter`, `WdBoot` (ELAM), and `WdNisDrv`;
-   * Applies anti-spyware policies, disables SpyNet telemetry, and removes systray hooks;
-   * Verifies that the values were really written, saves the changes into `install.wim` and cleanly unmounts;
-   * Reports the real outcome: **"DONE"** or **"DONE WITH WARNINGS"** listing what failed. If the offline registry cannot be unloaded, nothing is saved and the image stays unchanged.
+   * Unlocks `NT AUTHORITY\SYSTEM`-protected ACL permissions (`SeTakeOwnershipPrivilege` → `FullControl` for Administrators) on `wscsvc`, `SecurityHealthService`, and `Microsoft Defender\Features` (where `TamperProtection` resides);
+   * Sets **`Start = 4` (Disabled)** for `WinDefend`, `WdNisSvc`, `Sense`, `MDCoreSvc`, `webthreatdefsvc`, `webthreatdefusersvc` (`UserServiceFlags = 0`), `wscsvc`, and `SecurityHealthService` (only those present in the image);
+   * Disables filesystem filter drivers `WdFilter`, `WdBoot` (ELAM), and `WdNisDrv` *(critical boot driver `MsSecCore` is left untouched)*;
+   * Applies anti-spyware policies, sets `TamperProtection = 0`, suppresses UX notifications (`Notification_Suppress = 1`), disables SpyNet telemetry, hides systray, and deletes `SecurityHealth` from Run;
+   * Verifies that services (`0x4`) and `TamperProtection` (`0x0`) were actually written, safely unloads the offline hives (up to 5 retries), and commits changes into `install.wim`;
+   * Reports the real outcome: **"DONE!"** (`FAILS = 0`) or **"DONE WITH WARNINGS"** listing what failed. If the offline registry cannot be unloaded, nothing is saved and the image stays unchanged.
 5. **Outcome:** Upon installing Windows from this USB drive, Defender **never runs at all**: `MsMpEng.exe` is completely absent from Task Manager, background disk scanning is eliminated, and you save 80–150 MB of RAM.
 
 ### Method 2. Disabling Defender on an Already Installed Windows
@@ -177,7 +179,7 @@ If you already have a running Windows 11 installation and want to debloat and op
 
 ## Configuration and Options (Yaro options)
 
-To customize behavior, edit the variables at the top of `autounattend.xml` (for clean installs) or inside `scripts/YaroCommon.ps1` (for `Yaro-Apply.cmd`). Set to `$true` to apply or `$false` to skip.
+To customize behavior, edit the variables in the `Yaro options` block inside `autounattend.xml` (for clean installs) or inside `scripts/YaroCommon.ps1` (for `Yaro-Apply.cmd`). Set to `$true` to apply or `$false` to skip.
 
 | Option | Default | Description |
 |---|:---:|---|
@@ -192,7 +194,7 @@ To customize behavior, edit the variables at the top of `autounattend.xml` (for 
 | `$DebloatEdge` | `$true` | Disables Edge sidebar, Copilot/Bing integrations, Shopping Assistant, Rewards, recommendations, startup boost, and telemetry via policies. |
 | `$RemoveOneDrive` | `$true` | Uninstalls OneDrive via `OneDriveSetup.exe /uninstall` and disables `OneSyncSvc` (in addition to blocking sync policies). |
 | `$EnablePhotoViewer` | `$true` | Registers classic fast Windows Photo Viewer file associations (`.jpg`, `.png`, `.bmp`, `.gif`, `.ico`, etc.). |
-| `$DisableBgApps` | `$true` | Prevents Microsoft Store UWP apps from running in the background. |
+| `$DisableBgApps` | `$true` | Prevents Microsoft Store UWP apps from running in the background (`AppPrivacy\LetAppsRunInBackground = 2` system-wide and `GlobalUserDisabled = 1` per-user). |
 | `$PreferIPv4` | `$true` | Prefers IPv4 over IPv6 (`DisabledComponents = 32`) without breaking IPv6 for WSL2 or games. |
 | `$DisableSearchIndex` | `$false` | Disables the `WSearch` indexing service (recommended only if using a third-party search tool like Everything). |
 | `$DisableHibernation` | `$false` | Fully disables hibernation (`powercfg /h off`) to save SSD space on desktops. *Fast Startup (`HiberbootEnabled = 0`) is always disabled.* |
@@ -216,7 +218,7 @@ To customize behavior, edit the variables at the top of `autounattend.xml` (for 
 * **SvcHost Grouping:** sets `SvcHostSplitThresholdInKB = 0xffffffff`, consolidating fragmented svchost processes down to ~55–60.
 * **`C:\Windows\Temp` permissions:** when a cleaner deletes and recreates the folder, its permissions break and installers fail at ~90% with errors **2503 / 2502**. Yaro checks them and restores the Windows defaults when needed.
 * **WinTrust Fix:** eliminates the notorious 2-minute freeze during driver/app installations by preventing CRL network timeouts (`State = 0x23C00` + `ChainEngine` 200/500ms).
-* **Explorer & UX:** `MenuShowDelay = 0` ms, `TaskbarEndTask`, classic Windows 10 context menu, Explorer opens to "This PC" (`LaunchTo = 1`), hides Home & Gallery, shows file extensions (`HideFileExt = 0`), disables Sticky Keys prompt (`506`), disables Fast Startup (`HiberbootEnabled = 0`), and enables verbose BSoD crash info.
+* **Explorer & UX:** `MenuShowDelay = 0` ms, instant startup app launch without the 10-second logon pause (`StartupDelayInMSec = 0`), `TaskbarEndTask`, classic Windows 10 context menu, Explorer opens to "This PC" (`LaunchTo = 1`), hides Home & Gallery, shows file extensions (`HideFileExt = 0`), disables Sticky Keys prompt (`506`), disables Fast Startup (`HiberbootEnabled = 0`), and enables verbose BSoD crash info.
 
 ---
 
