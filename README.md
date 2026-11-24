@@ -78,9 +78,12 @@ If you want Microsoft Defender permanently disabled without any background servi
    * Restarts several times and lands directly on your desktop under the local `User` account.
 
 ### Step 6. Post-install steps
-1. **Install drivers:** install your chipset, Wi-Fi, and GPU drivers (NVIDIA/AMD/Intel) directly from the manufacturer. Yaro blocks Windows Update from auto-installing generic display drivers to prevent driver collisions.
-2. **Review logs:** check `%SystemRoot%\Setup\Scripts\Yaro\` for full installation transcripts.
-3. **Activation:** open *Settings → System → Activation* and activate your Windows 11 Pro edition with your digital license or product key.
+1. **Install drivers:** install your chipset, network, and GPU drivers (NVIDIA/AMD/Intel) directly from the manufacturer. Yaro blocks Windows Update from auto-installing generic display drivers to prevent driver collisions.
+2. **Run `Yaro-Apply.cmd` (Recommended):**
+   * Download the repository (*Code → Download ZIP*, or copy the extracted folder from your USB stick) and run **`Yaro-Apply.cmd`** as Administrator.
+   * **Why this is important:** Intel software and GPU driver installers often quietly reintroduce background telemetry and tracking services. Running `Yaro-Apply.cmd` creates a clean System Restore Point, strips newly added Intel/OEM telemetry, reinforces the *Ultimate Performance* power plan, applies user profile tweaks, and sets the signature Yaro wallpaper.
+3. **Review logs:** check `%SystemRoot%\Setup\Scripts\Yaro\` for full installation transcripts.
+4. **Activation:** open *Settings → System → Activation* and activate your Windows 11 Pro edition with your digital license or product key.
 
 ---
 
