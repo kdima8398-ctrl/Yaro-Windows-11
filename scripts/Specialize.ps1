@@ -23,9 +23,16 @@ if ($Live) {
 $ErrorActionPreference = 'Continue'
 function Svc([string]$Name, [int]$Start) {
   $subkey = "SYSTEM\CurrentControlSet\Services\$Name"
-  if (Test-Path -LiteralPath "HKLM:\$subkey" -ErrorAction SilentlyContinue) {
-    Set-YaroRegistryValue "HKLM\$subkey" 'Start' "$Start"
-  }
+  if (-not (Test-Path -LiteralPath "HKLM:\$subkey" -ErrorAction SilentlyContinue)) { return }
+  if ((Get-ItemProperty -LiteralPath "HKLM:\$subkey" -Name Start -ErrorAction SilentlyContinue).Start -eq $Start) { return }
+  try {
+    [Microsoft.Win32.Registry]::SetValue("HKEY_LOCAL_MACHINE\$subkey", 'Start', $Start, [Microsoft.Win32.RegistryValueKind]::DWord)
+    return
+  } catch { $why = $_.Exception.Message }
+  # Some service keys are writable only by SYSTEM; the Service Control Manager accepts administrators.
+  $mode = @('boot', 'system', 'auto', 'demand', 'disabled')[$Start]
+  $out = & sc.exe config $Name start= $mode 2>&1
+  if ($LASTEXITCODE -ne 0) { Write-YaroFailure "$Name start=$mode - $why sc.exe: $(($out | Out-String).Trim())" }
 }
 function Test-YaroOneDriveReportingTask($Task) {
   if ($Task.TaskPath -ne '\' -or $Task.TaskName -notlike 'OneDrive Reporting Task-S-1-*') { return $false }
@@ -43,7 +50,18 @@ Start-Transcript -Path (Join-Path $LogDir 'Specialize.log') -Append -ErrorAction
 if ($Live) {
   try {
     Checkpoint-Computer -Description 'Before Yaro' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
-  } catch { Write-YaroFailure "restore point: $($_.Exception.Message)" }
+    "  restore point created"
+  } catch {
+    Write-YaroFailure "restore point not created - $($_.Exception.Message)"
+    "  Usually System Protection is off. To turn it on: Win+R > SystemPropertiesProtection >"
+    "  drive C: > Configure > Turn on system protection > OK, then run Yaro-Apply.cmd again."
+    $answer = Read-Host '  Continue WITHOUT a restore point? [y/N]'
+    if ($answer -notmatch '^\s*y(es)?\s*$') {
+      "  Stopped. Nothing was changed."
+      Stop-Transcript -ErrorAction SilentlyContinue | Out-Null
+      exit 1
+    }
+  }
 }
 
 # ---------- 1. Store apps (removed for all users) ----------
@@ -121,7 +139,7 @@ try {
 foreach ($name in $disableFeatures) {
   if ($features[$name] -eq 'Enabled') {
     "  disable $name"
-    try { Disable-WindowsOptionalFeature -Online -FeatureName $name -NoRestart -ErrorAction Stop | Out-Null }
+    try { Disable-WindowsOptionalFeature -Online -FeatureName $name -NoRestart -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null }
     catch { Write-YaroFailure "disable feature $name - $($_.Exception.Message)" }
   }
 }
@@ -257,6 +275,27 @@ if ($LASTEXITCODE -ne 0) { Write-YaroFailure "set NTFS last-access behavior (exi
 if ($LASTEXITCODE -notin 0, 3010) { Write-YaroFailure "disable reserved storage (DISM exit $LASTEXITCODE)" }
 [Environment]::SetEnvironmentVariable('POWERSHELL_TELEMETRY_OPTOUT', '1', 'Machine')
 [Environment]::SetEnvironmentVariable('DOTNET_CLI_TELEMETRY_OPTOUT', '1', 'Machine')
+if ($ArgonPerformance) {
+  "== Argon performance"
+  Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling' 'PowerThrottlingOff' '1'
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile' 'SystemResponsiveness' '0'
+  & fsutil.exe 8dot3name set 1 *> $null
+  if ($LASTEXITCODE -ne 0) { Write-YaroFailure "turn off 8.3 short names (exit $LASTEXITCODE)" }
+}
+if ($ForceMSI) {
+  "== MSI mode for GPU, NVMe and network adapters"
+  try {
+    Get-PnpDevice -PresentOnly -ErrorAction Stop |
+      Where-Object { $_.Class -in 'Display', 'SCSIAdapter', 'Net' -and $_.InstanceId -like 'PCI\*' } |
+      ForEach-Object {
+        $msi = "SYSTEM\CurrentControlSet\Enum\$($_.InstanceId)\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties"
+        if (Test-Path -LiteralPath "HKLM:\$msi" -ErrorAction SilentlyContinue) {
+          Set-YaroRegistryValue "HKLM\$msi" 'MSISupported' '1'
+          "  MSI on: $($_.FriendlyName)"
+        }
+      }
+  } catch { Write-YaroFailure "MSI mode: $($_.Exception.Message)" }
+}
 
 # ---------- 9. Explorer: "Open in Notepad" for every file ----------
 try {
@@ -282,8 +321,23 @@ if ($DisableDefender) {
   Set-YaroRegistryValue "$d\Spynet" 'SubmitSamplesConsent' '2'
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Systray' 'HideSystray' '1'
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications' 'DisableNotifications' '1'
-  foreach ($s in 'WinDefend', 'WdNisSvc', 'Sense', 'WdFilter', 'WdBoot', 'WdNisDrv') { Svc $s 4 }
-  if ($Live) { "  NOTE: on a running Windows turn off Tamper Protection first, otherwise Defender keeps its settings" }
+  # While Defender runs, Windows locks its services (even for SYSTEM during setup).
+  $locked = @()
+  foreach ($s in 'WinDefend', 'WdNisSvc', 'Sense', 'WdFilter', 'WdBoot', 'WdNisDrv') {
+    $subkey = "SYSTEM\CurrentControlSet\Services\$s"
+    if (-not (Test-Path -LiteralPath "HKLM:\$subkey" -ErrorAction SilentlyContinue)) { continue }
+    if ((Get-ItemProperty -LiteralPath "HKLM:\$subkey" -Name Start -ErrorAction SilentlyContinue).Start -eq 4) { continue }
+    try { [Microsoft.Win32.Registry]::SetValue("HKEY_LOCAL_MACHINE\$subkey", 'Start', 4, [Microsoft.Win32.RegistryValueKind]::DWord) }
+    catch { $locked += $s }
+  }
+  if ($locked) { "  NOTE Windows protects the Defender services ($($locked -join ', ')); they stay as they are" }
+  # With Tamper Protection on, Defender ignores the policies above.
+  $tamper = $null
+  try { $tamper = (Get-MpComputerStatus -ErrorAction Stop).IsTamperProtected } catch { }
+  if ($tamper -eq $true) {
+    $how = 'Tamper Protection is on, so Defender ignores these settings. Turn it off (Windows Security > Virus & threat protection > Manage settings), then run Yaro-Apply.cmd again'
+    if ($Live) { Write-YaroFailure "Defender stays on: $how" } else { "  NOTE Defender stays on: $how" }
+  }
 }
 
 # ---------- 11. Intel telemetry (only if Intel software installed it) ----------
@@ -304,6 +358,7 @@ foreach ($s in 'ESRV_SVC_QUEENCREEK', 'USER_ESRV_SVC_QUEENCREEK', 'SystemUsageRe
   }
 }
 foreach ($s in 'IntelTelemetryAgent', 'IntelCollectorService') { Svc $s 4 }
+Svc 'PresentMonSharedService' 3
 
 # ---------- 12. Background scheduled tasks ----------
 "== Scheduled tasks"
@@ -342,11 +397,8 @@ try {
 # The reporting task shares a binary with the updater. Match its action as well as its name.
 try {
   if (Test-YaroOneDriveInactive) {
-    $tasks = try {
-      Get-ScheduledTask -TaskPath '\' -TaskName 'OneDrive Reporting Task-S-1-*' -ErrorAction Stop
-    } catch {
-      if ($_.FullyQualifiedErrorId -notlike 'CmdletizationQuery_NotFound*') { throw }
-    }
+    $tasks = @(Get-ScheduledTask -ErrorAction Stop |
+      Where-Object { $_.TaskPath -eq '\' -and $_.TaskName -like 'OneDrive Reporting Task-S-1-*' })
     foreach ($task in $tasks) {
       if ($task.State -eq 'Disabled' -or -not (Test-YaroOneDriveReportingTask $task)) { continue }
       try {
@@ -408,6 +460,7 @@ if ($LASTEXITCODE -eq 0) {
     Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\WinTrust\Trust Providers\Software Publishing" 'State' '0x00023c00' 'REG_DWORD'
     Set-YaroRegistryValue "HKU\YaroDefault\System\GameConfigStore" 'GameDVR_Enabled' '0' 'REG_DWORD'
     Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\GameDVR" 'HistoricalCaptureEnabled' '0' 'REG_DWORD'
+    if ($ArgonPerformance) { Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\GameBar" 'AutoGameModeEnabled' '0' 'REG_DWORD' }
     Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'ContentDeliveryAllowed' '0' 'REG_DWORD'
     Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'OemPreInstalledAppsEnabled' '0' 'REG_DWORD'
     Set-YaroRegistryValue "HKU\YaroDefault\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'PreInstalledAppsEnabled' '0' 'REG_DWORD'

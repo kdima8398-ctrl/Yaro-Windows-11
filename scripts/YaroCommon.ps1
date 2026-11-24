@@ -9,6 +9,9 @@ $DisablePrinting    = $true   # print spooler OFF (printers will not work)
 $DisableBtHandsFree = $true   # Bluetooth headset mic OFF (headphones stay in stereo in games)
 $DisableVPN         = $true   # RasMan/RasAuto OFF (built-in Windows VPN will not work)
 $SetWallpaper       = $true   # Yaro notebook wallpaper on the desktop of every user
+$ArgonPerformance   = $true   # Argon tweaks: Ultimate Performance plan + min CPU 5%, no power throttling,
+                              #   SystemResponsiveness 0, no 8.3 names, Game Mode off (laptop battery lasts less)
+$ForceMSI           = $false  # Argon MSI interrupts for GPU, NVMe and network (an unsuitable driver can break)
 # -----------------------------------------------------------------------------
 
 $YaroLogDir = Join-Path $env:SystemRoot 'Setup\Scripts\Yaro'
@@ -107,7 +110,8 @@ public static extern uint PowerSetUserConfiguredACPowerMode(ref Guid mode);
 }
 
 function Set-YaroMachinePerformance {
-  if (Set-YaroAcPerformanceMode) {
+  # Argon keeps Ultimate Performance on AC and battery; otherwise prefer the Balanced power mode.
+  if (-not $ArgonPerformance -and (Set-YaroAcPerformanceMode)) {
     "== Power mode: Best Performance when plugged in"
   } else {
     "== Power plan: Ultimate Performance, minimum CPU state 5%"

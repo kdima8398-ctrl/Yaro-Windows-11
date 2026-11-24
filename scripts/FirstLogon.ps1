@@ -31,6 +31,7 @@ if ($Setup) { Set-YaroUserPolicies 'HKCU' }
 Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\WinTrust\Trust Providers\Software Publishing" 'State' '0x00023c00' 'REG_DWORD'
 Set-YaroRegistryValue "HKCU\System\GameConfigStore" 'GameDVR_Enabled' '0' 'REG_DWORD'
 Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" 'HistoricalCaptureEnabled' '0' 'REG_DWORD'
+if ($ArgonPerformance) { Set-YaroRegistryValue "HKCU\Software\Microsoft\GameBar" 'AutoGameModeEnabled' '0' 'REG_DWORD' }
 Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'ContentDeliveryAllowed' '0' 'REG_DWORD'
 Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'OemPreInstalledAppsEnabled' '0' 'REG_DWORD'
 Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'PreInstalledAppsEnabled' '0' 'REG_DWORD'
