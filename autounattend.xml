@@ -244,8 +244,8 @@ function Set-YaroMachinePerformance {
   } else {
     "== Power plan: Ultimate Performance, minimum CPU state 5%"
     $scheme = 'e9a42b02-d5df-448d-aa00-03f14749eb62'
-    & powercfg.exe /query $scheme SUB_PROCESSOR *> $null
-    $schemeAvailable = $LASTEXITCODE -eq 0
+    # powercfg /list does not fail for a missing plan, so nothing red ends up in the log
+    $schemeAvailable = [bool]((& powercfg.exe /list 2>$null) -match $scheme)
     if (-not $schemeAvailable) {
       & powercfg.exe /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 $scheme *> $null
       $schemeAvailable = $LASTEXITCODE -eq 0
