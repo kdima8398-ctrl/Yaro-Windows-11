@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableExtensions EnableDelayedExpansion
 title Yaro — Вырезание / Отключение Windows Defender в образе install.wim
 
