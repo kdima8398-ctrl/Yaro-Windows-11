@@ -82,8 +82,33 @@ If you want Microsoft Defender permanently disabled without any background servi
 2. **Run `Yaro-Apply.cmd` (Recommended):**
    * Download the repository (*Code → Download ZIP*, or copy the extracted folder from your USB stick) and run **`Yaro-Apply.cmd`** as Administrator.
    * **Why this is important:** Intel software and GPU driver installers often quietly reintroduce background telemetry and tracking services. Running `Yaro-Apply.cmd` creates a clean System Restore Point, strips newly added Intel/OEM telemetry, reinforces the *Ultimate Performance* power plan, applies user profile tweaks, and sets the signature Yaro wallpaper.
-3. **Review logs:** check `%SystemRoot%\Setup\Scripts\Yaro\` for full installation transcripts.
-4. **Activation:** open *Settings → System → Activation* and activate your Windows 11 Pro edition with your digital license or product key.
+3. **Restore Photo Viewer & Snipping Tool (if needed):**
+   * If your Windows edition lacked these apps or you installed offline without initial Store provisioning:
+     * **Classic fast Windows Photo Viewer** (PowerShell as Admin):
+       ```powershell
+       $k = 'HKLM:\SOFTWARE\Microsoft\Windows Photo Viewer\Capabilities\FileAssociations'; foreach ($e in '.jpg','.jpeg','.png','.bmp','.gif','.tiff') { Set-ItemProperty -Path $k -Name $e -Value 'PhotoViewer.FileAssoc.Tiff' }
+       ```
+     * **Snipping Tool**:
+       ```cmd
+       winget install 9MZ95KL8MR0L --accept-package-agreements --accept-source-agreements
+       ```
+4. **Review logs:** check `%SystemRoot%\Setup\Scripts\Yaro\` for full installation transcripts.
+5. **Activation:** open *Settings → System → Activation* and activate your Windows 11 Pro edition with your digital license or product key.
+
+### Step 7. Additional Optimization & App Setup with CTT (Chris Titus Tech WinUtil)
+
+For rapid batch installation of essential software (clean, unattended, no adware) and further fine-tuning, we recommend the open-source **CTT Windows Utility (WinUtil)**:
+
+1. Open **PowerShell as Administrator** (`Win + X` → *Terminal (Admin)* or *PowerShell (Admin)*).
+2. Run the command:
+   ```powershell
+   irm https://christitus.com/win | iex
+   ```
+3. In the graphical window:
+   * **"Install" tab:** select your favorite applications (Chrome/Brave, Telegram, Discord, Steam, 7-Zip, VLC, VS Code, OBS Studio) and click **"Install Selected"**. Winget installs them cleanly in the background.
+   * **"Tweaks" tab:** select **Desktop** (for desktop PCs) or **Laptop** (for notebooks) and click **"Run Tweaks"**. Yaro and CTT tweaks complement each other seamlessly.
+   * **"Updates" tab:** select **"Security (Recommended)"** to defer feature updates and only receive stable security patches.
+   * **Tip:** avoid clicking brute-force options like disabling all services — core Windows services are already expertly configured by Yaro.
 
 ---
 
