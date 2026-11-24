@@ -74,6 +74,38 @@ function Remove-YaroRegistryValue([string]$Key, [string]$Name) {
   }
 }
 
+# C:\Windows\Temp must keep its own permissions: users may create files there, inheritance is off.
+# Cleaners that delete and recreate the folder make it inherit C:\Windows (users: read only),
+# and then installers fail at ~90% with Windows Installer errors 2503 / 2502.
+function Test-YaroTempAcl([string]$Path) {
+  $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop
+  if (-not $acl.AreAccessRulesProtected) { return $false }
+  $users = [Security.Principal.SecurityIdentifier]'S-1-5-32-545'
+  $createFiles = [Security.AccessControl.FileSystemRights]::CreateFiles
+  foreach ($rule in $acl.Access) {
+    if ($rule.AccessControlType -ne 'Allow') { continue }
+    try { $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]) } catch { continue }
+    if ($sid -eq $users -and ($rule.FileSystemRights -band $createFiles) -eq $createFiles) { return $true }
+  }
+  return $false
+}
+
+function Repair-YaroWindowsTemp([string]$Path = (Join-Path $env:SystemRoot 'Temp')) {
+  try {
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) { return }
+    if (Test-YaroTempAcl $Path) { "  permissions ok"; return }
+    # Windows defaults: CREATOR OWNER, SYSTEM and Administrators full control; Users may create files and folders
+    $out = & icacls.exe $Path /inheritance:r /grant:r '*S-1-3-0:(OI)(CI)(IO)(F)' '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' '*S-1-5-32-545:(CI)(S,WD,AD,X)' 2>&1
+    if ($LASTEXITCODE -eq 0 -and (Test-YaroTempAcl $Path)) {
+      "  repaired: default permissions restored (installer errors 2503/2502)"
+    } else {
+      Write-YaroFailure "repair permissions of $Path (icacls exit $LASTEXITCODE): $(($out | Out-String).Trim())"
+    }
+  } catch {
+    Write-YaroFailure "check permissions of $Path - $($_.Exception.Message)"
+  }
+}
+
 function Clear-YaroUserServiceTemplate([string]$Name) {
   $subkey = "SYSTEM\CurrentControlSet\Services\$Name"
   $props = Get-ItemProperty -LiteralPath "HKLM:\$subkey" -ErrorAction SilentlyContinue

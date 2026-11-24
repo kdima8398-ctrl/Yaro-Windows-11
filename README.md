@@ -214,6 +214,7 @@ To customize behavior, edit the variables at the top of `autounattend.xml` (for 
 
 ### System Responsiveness, Latency & Explorer UX
 * **SvcHost Grouping:** sets `SvcHostSplitThresholdInKB = 0xffffffff`, consolidating fragmented svchost processes down to ~55–60.
+* **`C:\Windows\Temp` permissions:** when a cleaner deletes and recreates the folder, its permissions break and installers fail at ~90% with errors **2503 / 2502**. Yaro checks them and restores the Windows defaults when needed.
 * **WinTrust Fix:** eliminates the notorious 2-minute freeze during driver/app installations by preventing CRL network timeouts (`State = 0x23C00` + `ChainEngine` 200/500ms).
 * **Explorer & UX:** `MenuShowDelay = 0` ms, `TaskbarEndTask`, classic Windows 10 context menu, Explorer opens to "This PC" (`LaunchTo = 1`), hides Home & Gallery, shows file extensions (`HideFileExt = 0`), disables Sticky Keys prompt (`506`), disables Fast Startup (`HiberbootEnabled = 0`), and enables verbose BSoD crash info.
 

@@ -385,6 +385,10 @@ try {
   $c = $k.CreateSubKey('command'); $c.SetValue('', 'notepad.exe "%1"'); $c.Close(); $k.Close()
 } catch { Write-YaroFailure "Open in Notepad: $($_.Exception.Message)" }
 
+# ---------- Windows Temp permissions (installers fail with errors 2503/2502 when broken) ----------
+"== Windows Temp permissions"
+Repair-YaroWindowsTemp
+
 # ---------- 10. Security options ----------
 "== Security options"
 if ($SilentUAC) { Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ConsentPromptBehaviorAdmin' '0' }
