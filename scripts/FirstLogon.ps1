@@ -15,51 +15,30 @@ Start-Transcript -Path (Join-Path $LogDir 'FirstLogon.log') -Append -ErrorAction
 "Yaro FirstLogon.ps1 started $(Get-Date) as $env:USERNAME"
 
 "== Current user settings"
-Set-YaroRegistryValue "HKCU\Control Panel\Desktop" 'MenuShowDelay' '0' 'REG_SZ'
-Set-YaroRegistryValue "HKCU\Control Panel\Desktop" 'AutoEndTasks' '0' 'REG_SZ'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings" 'TaskbarEndTask' '1' 'REG_DWORD'
-Set-YaroGraphicsDefaults 'HKCU'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" 'AppsUseLightTheme' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" 'SystemUsesLightTheme' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" 'SeparateProcess' '1' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" 'TaskbarMn' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" 'ShowTaskViewButton' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" 'ShowCopilotButton' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\Search" 'SearchboxTaskbarMode' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\Search" 'BingSearchEnabled' '0' 'REG_DWORD'
-if ($Setup) { Set-YaroUserPolicies 'HKCU' }
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\WinTrust\Trust Providers\Software Publishing" 'State' '0x00023c00' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\System\GameConfigStore" 'GameDVR_Enabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" 'HistoricalCaptureEnabled' '0' 'REG_DWORD'
-if ($ArgonPerformance) { Set-YaroRegistryValue "HKCU\Software\Microsoft\GameBar" 'AutoGameModeEnabled' '0' 'REG_DWORD' }
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'ContentDeliveryAllowed' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'OemPreInstalledAppsEnabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'PreInstalledAppsEnabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'PreInstalledAppsEverEnabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SilentInstalledAppsEnabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SoftLandingEnabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SystemPaneSuggestionsEnabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-310093Enabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-338388Enabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-338389Enabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-338393Enabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-353694Enabled' '0' 'REG_DWORD'
-Set-YaroRegistryValue "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" 'SubscribedContent-353696Enabled' '0' 'REG_DWORD'
-# Windows 10 style context menu
-try {
-  $k = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32')
-  $k.SetValue('', ''); $k.Close()
-} catch { Write-YaroFailure "classic context menu: $($_.Exception.Message)" }
-# Folders: do not guess folder type (faster Explorer)
-Set-YaroRegistryValue 'HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags\AllFolders\Shell' 'FolderType' 'NotSpecified' 'REG_SZ'
-
-if ($Setup) { Set-YaroMachinePerformance }
+# On live runs, flush previously guessed Explorer folder views before enforcing NotSpecified.
+if (-not $Setup) {
+  foreach ($bagKey in 'Bags', 'BagMRU') {
+    $bagPath = "HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\$bagKey"
+    if (Test-Path -LiteralPath $bagPath) {
+      Remove-Item -LiteralPath $bagPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
+  }
+}
+Set-YaroUserSettings 'HKCU'
+if ($Setup) {
+  Set-YaroUserPolicies 'HKCU'
+  Set-YaroMachinePerformance
+  $currentSid = ([Security.Principal.WindowsIdentity]::GetCurrent()).User.Value
+  Remove-YaroCoreAI $currentSid
+}
 
 Remove-YaroOneDriveStartup 'HKCU'
+Uninstall-YaroOneDrive
 
 "== Leftover apps of the current user"
 $apps = 'Microsoft.Windows.DevHome', 'MicrosoftWindows.CrossDevice', 'Microsoft.Edge.GameAssist', 'AppUp.IntelGraphicsControlPanel',
         'Microsoft.Copilot', 'Microsoft.BingSearch', 'MicrosoftWindows.Client.WebExperience', 'Microsoft.OutlookForWindows'
+if ($RemoveIntelApp) { $apps += 'AppUp.IntelGraphicsExperience' }
 $installedApps = $null
 try { $installedApps = @(Get-AppxPackage -ErrorAction Stop | Where-Object { $_.Name -in $apps }) }
 catch { "  WARN app inventory unavailable; querying packages by name" }
