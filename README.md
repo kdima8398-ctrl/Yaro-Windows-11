@@ -64,7 +64,7 @@ Setup takes around 10–15 minutes and is completely automated.
 ### Step 4. (Optional, Recommended) Remove Defender BEFORE setup
 If you want Microsoft Defender permanently disabled without any background services or CPU load:
 1. Run **`Yaro-Remove-Defender-WIM.cmd`** as Administrator.
-2. The script will automatically locate `sources\install.wim` on your USB stick and disable Defender services and kernel drivers directly in the offline image.
+2. The script will automatically locate `sources\install.wim` on your USB stick, pick the **Windows 11 Pro** edition (the one `autounattend.xml` installs) and disable Defender services and kernel drivers directly in the offline image.
 3. See [Complete Windows Defender Removal Guide](#complete-windows-defender-removal-guide) below.
 
 ### Step 5. Boot from USB and install
@@ -140,14 +140,15 @@ While the Windows image is dormant on your USB drive, kernel security hooks (`Wd
 
 1. Flash your USB drive via Rufus (as outlined in Step 2).
 2. Right-click **`Yaro-Remove-Defender-WIM.cmd`** → **"Run as Administrator"**.
-3. The script automatically detects `sources\install.wim` on your USB stick.
+3. The script automatically detects `sources\install.wim` on your USB stick. The edition is chosen automatically: **Windows 11 Pro only** (Pro N, Pro Education and Pro for Workstations are skipped). If the image has no Pro edition, nothing is changed.
 4. It performs the following unattended actions:
    * Mounts the WIM image using DISM into a temporary directory;
    * Loads the offline `SYSTEM` and `SOFTWARE` registry hives;
-   * Sets **`Start = 4` (Disabled)** for `WinDefend`, `WdNisSvc`, `Sense`, and `SecurityHealthService`;
+   * Sets **`Start = 4` (Disabled)** for `WinDefend`, `WdNisSvc`, `Sense`, `MDCoreSvc`, `webthreatdefsvc`, `webthreatdefusersvc`, `wscsvc`, and `SecurityHealthService` (only those present in the image);
    * Disables filesystem filter drivers `WdFilter`, `WdBoot` (ELAM), and `WdNisDrv`;
    * Applies anti-spyware policies, disables SpyNet telemetry, and removes systray hooks;
-   * Saves the changes directly into `install.wim` and cleanly unmounts.
+   * Verifies that the values were really written, saves the changes into `install.wim` and cleanly unmounts;
+   * Reports the real outcome: **"DONE"** or **"DONE WITH WARNINGS"** listing what failed. If the offline registry cannot be unloaded, nothing is saved and the image stays unchanged.
 5. **Outcome:** Upon installing Windows from this USB drive, Defender **never runs at all**: `MsMpEng.exe` is completely absent from Task Manager, background disk scanning is eliminated, and you save 80–150 MB of RAM.
 
 ### Method 2. Disabling Defender on an Already Installed Windows
@@ -158,7 +159,7 @@ If you have already installed Windows and wish to disable Defender without reins
 3. **Manually toggle OFF two switches:**
    * *Real-time protection*;
    * *Tamper Protection*.
-4. Return to the command prompt and press any key: the script will immediately apply policies, stop background Defender services, and clean up startup tasks.
+4. Return to the command prompt and press any key: the script will immediately apply policies, stop background Defender services, and clean up startup tasks. It then checks which services Windows actually allowed it to disable: if Tamper Protection is still on, you see **"PARTIALLY DONE"** with the list of services.
 5. Restart your computer.
 
 ---
@@ -180,7 +181,7 @@ To customize behavior, edit the variables at the top of `autounattend.xml` (for 
 
 | Option | Default | Description |
 |---|:---:|---|
-| `$DisableDefender` | `$true` | Disables Microsoft Defender (including `MDCoreSvc`, `webthreatdef*`, `wscsvc`, and `Sense.Client`) and hides its tray icon. |
+| `$DisableDefender` | `$true` | Disables Microsoft Defender (including `MDCoreSvc`, `webthreatdef*`, `wscsvc`, and `Sense.Client`), hides its tray icon, removes `SecurityHealth` from startup and disables Defender's scheduled tasks. |
 | `$DisableSmartScreen` | `$true` | Disables SmartScreen checks for downloaded files and untrusted executables. |
 | `$SilentUAC` | `$true` | Elevates administrative programs without dimming the screen or prompting confirmation. |
 | `$PauseUpdates` | `$true` | Stops automatic update downloads and pauses updates until year 2077 (Ghost Pause), keeping Microsoft Store and `winget` working. |
@@ -195,8 +196,8 @@ To customize behavior, edit the variables at the top of `autounattend.xml` (for 
 | `$PreferIPv4` | `$true` | Prefers IPv4 over IPv6 (`DisabledComponents = 32`) without breaking IPv6 for WSL2 or games. |
 | `$DisableSearchIndex` | `$false` | Disables the `WSearch` indexing service (recommended only if using a third-party search tool like Everything). |
 | `$DisableHibernation` | `$false` | Fully disables hibernation (`powercfg /h off`) to save SSD space on desktops. *Fast Startup (`HiberbootEnabled = 0`) is always disabled.* |
-| `$RemoveIntelApp` | `$false` | Removes `AppUp.IntelGraphicsExperience` (Intel Graphics Command Center) and disables `igccservice`. |
-| `$ArgonPerformance` | `$true` | High-performance tuning: *Ultimate Performance* power scheme, 5% minimum CPU state (prevents idle overheating), SvcHost grouping (reduces process count from 90+ down to ~55), and 0ms menu delay. |
+| `$RemoveIntelApp` | `$false` | Removes `AppUp.IntelGraphicsExperience` (Intel Graphics Command Center) and disables `igccservice`. *The `igfxCUIService` of the old Intel HD Graphics Control Panel (an app Yaro removes) is always set to Manual.* |
+| `$ArgonPerformance` | `$true` | High-performance tuning: *Ultimate Performance* power scheme with a 5% minimum CPU state (the CPU cools down at idle and keeps turbo headroom), Game Mode on, `SystemResponsiveness = 10` (the lowest value Windows accepts: it treats 0 as 10), no 8.3 short names. Power throttling of background apps stays with Windows: it never slows the active game, leaves it more thermal headroom and moves background work to E-cores on 12th–14th gen Intel. Laptop battery drains faster. |
 | `$ForceMSI` | `$false` | Forces MSI (Message Signaled Interrupts) mode for GPU, NVMe, and network adapters to minimize DPC latency. |
 | `$SetWallpaper` | `$true` | Sets the signature minimalist Yaro wallpaper. |
 
@@ -207,7 +208,9 @@ To customize behavior, edit the variables at the top of `autounattend.xml` (for 
 ### Removed Bloatware, AI & Telemetry
 * Strips all non-essential UWP packages: Clipchamp, Microsoft News, Weather, Feedback Hub, DevHome, Bing Search, Copilot / `CoreAI`, Edge GameAssist, Cortana, Solitaire, Office Hub, People, new Outlook, and consumer promo content.
 * Prevents `UScheduler_Oobe` from silently reinstalling Outlook and Dev Home when connected to the internet, clears Start pins on clean installs, and suppresses Microsoft Account promotional prompts.
+* Turns off the advertising ID for all users by policy (`AdvertisingInfo\DisabledByGroupPolicy`) and stops handing the Windows language list to websites and apps (`HttpAcceptLanguageOptOut`).
 * Disables user telemetry (`AdvertisingInfo`, `TIPC`, `TailoredExperiences`, `Start_TrackProgs`, `Siuf`), `whesvc`, `lfsvc` geolocation service, WER upload tasks (`QueueReporting`, keeping local dumps functional), and `Flighting` / `CEIP` / `Diagnosis` telemetry tasks.
+* Less background work: disables the `Autochk\Proxy`, `Device Information` (device census), `SustainabilityTelemetry`, `PerformanceTrace` (feedback toasts), `AccountHealth` (account reminders) and `Power Efficiency Diagnostics` (periodic power analysis) tasks. Turns off Start recommendations and account notifications, sync-provider ads in Explorer, "Suggested" toasts, Settings notifications, typing insights, lock screen fun facts, cloud search and Click to Do.
 
 ### System Responsiveness, Latency & Explorer UX
 * **SvcHost Grouping:** sets `SvcHostSplitThresholdInKB = 0xffffffff`, consolidating fragmented svchost processes down to ~55–60.

@@ -9,8 +9,11 @@ $DisablePrinting    = $true   # print spooler OFF (printers will not work)
 $DisableBtHandsFree = $true   # Bluetooth headset mic OFF (headphones stay in stereo in games)
 $DisableVPN         = $true   # RasMan/RasAuto OFF (built-in Windows VPN will not work)
 $SetWallpaper       = $true   # Yaro notebook wallpaper on the desktop of every user
-$ArgonPerformance   = $true   # Argon tweaks: Ultimate Performance plan + min CPU 5%, no power throttling,
-                              #   SystemResponsiveness 0, no 8.3 names, Game Mode off (laptop battery lasts less)
+$ArgonPerformance   = $true   # Argon tweaks: Ultimate Performance plan + min CPU 5%, Game Mode on,
+                              #   SystemResponsiveness 10 (lowest value Windows accepts), no 8.3 names.
+                              #   Power throttling stays with Windows: background apps get less power, so the
+                              #   game keeps more turbo headroom and 12-14th gen Intel can use its E-cores.
+                              #   Laptop battery lasts less.
 $DisableWindowsAI   = $true   # Remove Copilot / CoreAI, disable Recall feature and Notepad AI
 $DebloatEdge        = $true   # Disable Edge sidebar, shopping, rewards, recommendations and telemetry
 $RemoveOneDrive     = $true   # Uninstall OneDriveSetup + disable OneSyncSvc (also keeps sync policy off)
@@ -299,6 +302,11 @@ function Set-YaroUserSettings([string]$UserHive) {
   Set-YaroRegistryValue $adv 'LaunchTo' '1' 'REG_DWORD'
   Set-YaroRegistryValue $adv 'HideFileExt' '0' 'REG_DWORD'
   Set-YaroRegistryValue $adv 'Start_TrackProgs' '0' 'REG_DWORD'
+  # Start and Explorer: no recommendations, account nags or sync-provider ads (nothing fetched for them)
+  Set-YaroRegistryValue $adv 'Start_IrisRecommendations' '0' 'REG_DWORD'
+  Set-YaroRegistryValue $adv 'Start_AccountNotifications' '0' 'REG_DWORD'
+  Set-YaroRegistryValue $adv 'ShowSyncProviderNotifications' '0' 'REG_DWORD'
+  Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize" 'StartupDelayInMSec' '0' 'REG_DWORD'
 
   Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\Search" 'SearchboxTaskbarMode' '0' 'REG_DWORD'
   Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\Search" 'BingSearchEnabled' '0' 'REG_DWORD'
@@ -321,10 +329,13 @@ function Set-YaroUserSettings([string]$UserHive) {
   # Game DVR & Mode
   Set-YaroRegistryValue "$UserHive\System\GameConfigStore" 'GameDVR_Enabled' '0' 'REG_DWORD'
   Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\GameDVR" 'HistoricalCaptureEnabled' '0' 'REG_DWORD'
-  if ($ArgonPerformance) { Set-YaroRegistryValue "$UserHive\Software\Microsoft\GameBar" 'AutoGameModeEnabled' '0' 'REG_DWORD' }
+  # Game Mode on: Windows prioritises the game and holds back updates and notifications while it runs
+  if ($ArgonPerformance) { Set-YaroRegistryValue "$UserHive\Software\Microsoft\GameBar" 'AutoGameModeEnabled' '1' 'REG_DWORD' }
 
   # Privacy: advertising ID, tailored experiences, input telemetry, feedback prompts
   Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo" 'Enabled' '0' 'REG_DWORD'
+  # Do not hand the Windows language list to websites and apps (Settings > Privacy > General)
+  Set-YaroRegistryValue "$UserHive\Control Panel\International\User Profile" 'HttpAcceptLanguageOptOut' '1' 'REG_DWORD'
   Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\Privacy" 'TailoredExperiencesWithDiagnosticDataEnabled' '0' 'REG_DWORD'
   Set-YaroRegistryValue "$UserHive\Software\Microsoft\Speech_OneCore\Settings\OnlineSpeechPrivacy" 'HasAccepted' '0' 'REG_DWORD'
   Set-YaroRegistryValue "$UserHive\Software\Microsoft\Input\TIPC" 'Enabled' '0' 'REG_DWORD'
@@ -334,6 +345,11 @@ function Set-YaroUserSettings([string]$UserHive) {
   Set-YaroRegistryValue "$UserHive\Software\Microsoft\Personalization\Settings" 'AcceptedPrivacyPolicy' '0' 'REG_DWORD'
   Set-YaroRegistryValue "$UserHive\Software\Microsoft\Siuf\Rules" 'NumberOfSIUFInPeriod' '0' 'REG_DWORD'
   Remove-YaroRegistryValue "$UserHive\Software\Microsoft\Siuf\Rules" 'PeriodInNanoSeconds'
+  Set-YaroRegistryValue "$UserHive\Software\Microsoft\Input\Settings" 'InsightsEnabled' '0' 'REG_DWORD'
+
+  # Fewer background notifications: "Suggested" toasts and account notifications in Settings
+  Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.Suggested" 'Enabled' '0' 'REG_DWORD'
+  Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\SystemSettings\AccountNotifications" 'EnableAccountNotifications' '0' 'REG_DWORD'
 
   if ($DisableBgApps) {
     Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" 'GlobalUserDisabled' '1' 'REG_DWORD'
@@ -344,7 +360,7 @@ function Set-YaroUserSettings([string]$UserHive) {
   foreach ($val in 'ContentDeliveryAllowed', 'OemPreInstalledAppsEnabled', 'PreInstalledAppsEnabled',
                    'PreInstalledAppsEverEnabled', 'SilentInstalledAppsEnabled', 'SoftLandingEnabled',
                    'SystemPaneSuggestionsEnabled', 'FeatureManagementEnabled', 'SubscribedContentEnabled',
-                   'SubscribedContent-310093Enabled', 'SubscribedContent-338388Enabled',
+                   'SubscribedContent-310093Enabled', 'SubscribedContent-338387Enabled', 'SubscribedContent-338388Enabled',
                    'SubscribedContent-338389Enabled', 'SubscribedContent-338393Enabled',
                    'SubscribedContent-353694Enabled', 'SubscribedContent-353696Enabled') {
     Set-YaroRegistryValue $cdm $val '0' 'REG_DWORD'

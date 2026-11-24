@@ -206,6 +206,9 @@ if ($PauseUpdates) {
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'ExcludeWUDriversInQualityUpdate' '1'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'AllowTelemetry' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection' 'AllowTelemetry' '0'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'DoNotShowFeedbackNotifications' '1'
+# Advertising ID off for every user by policy; apps cannot get it and the switch in Settings stays locked
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo' 'DisabledByGroupPolicy' '1'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System' 'EnableActivityFeed' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System' 'PublishUserActivities' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System' 'UploadUserActivities' '0'
@@ -242,6 +245,7 @@ if ($DisableWindowsAI) {
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\WindowsNotepad' 'DisableAIFeatures' '1'
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI' 'DisableAIDataAnalysis' '1'
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI' 'AllowRecallEnablement' '0'
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI' 'DisableClickToDo' '1'
 }
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\GameDVR' 'AllowGameDVR' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\StorageSense' 'AllowStorageSenseGlobal' '0'
@@ -250,6 +254,9 @@ Set-YaroRegistryValue $oneDrivePolicy 'DisableFileSyncNGSC' '1'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\WindowsInkWorkspace' 'AllowWindowsInkWorkspace' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\PassportForWork' 'Enabled' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoDriveTypeAutoRun' '255'
+if ($DisableBgApps) {
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy' 'LetAppsRunInBackground' '2'
+}
 if ($DebloatEdge) {
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate' 'CreateDesktopShortcutDefault' '0'
   $edgePol = 'HKLM\SOFTWARE\Policies\Microsoft\Edge'
@@ -288,6 +295,7 @@ Set-YaroRegistryValue $fm 'VariantPayload' '0'; Set-YaroRegistryValue $fm 'Varia
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'EnableDynamicContentInWSB' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'DisableWebSearch' '1'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'ConnectedSearchUseWeb' '0'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'AllowCloudSearch' '0'
 
 # ---------- 7. Fast installers and drivers (no 2-minute CRL hangs) ----------
 "== Registry: installers and drivers"
@@ -346,8 +354,12 @@ if ($LASTEXITCODE -notin 0, 3010) { Write-YaroFailure "disable reserved storage 
 [Environment]::SetEnvironmentVariable('DOTNET_CLI_TELEMETRY_OPTOUT', '1', 'Machine')
 if ($ArgonPerformance) {
   "== Argon performance"
-  Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling' 'PowerThrottlingOff' '1'
-  Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile' 'SystemResponsiveness' '0'
+  # Power throttling only slows BACKGROUND apps (never the active game). Keeping it on leaves more
+  # turbo/thermal headroom for the game and lets 12-14th gen Intel move background work to E-cores.
+  # Earlier Yaro versions turned it off, so the old value is removed.
+  Remove-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling' 'PowerThrottlingOff'
+  # MMCSS reserve for background tasks: Windows treats 0 as 10, so 10 is the lowest effective value.
+  Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile' 'SystemResponsiveness' '10'
   & fsutil.exe 8dot3name set 1 *> $null
   if ($LASTEXITCODE -ne 0) { Write-YaroFailure "turn off 8.3 short names (exit $LASTEXITCODE)" }
 }
@@ -395,6 +407,8 @@ if ($DisableDefender) {
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications' 'DisableNotifications' '1'
   # While Defender runs, Windows locks its services (even for SYSTEM during setup).
   $locked = @()
+  # The Security tray icon is useless while Defender is off
+  Remove-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' 'SecurityHealth'
   foreach ($s in 'WinDefend', 'WdNisSvc', 'Sense', 'MDCoreSvc', 'webthreatdefsvc', 'webthreatdefusersvc', 'wscsvc', 'SecurityHealthService', 'WdFilter', 'WdBoot', 'WdNisDrv') {
     $subkey = "SYSTEM\CurrentControlSet\Services\$s"
     if (-not (Test-Path -LiteralPath "HKLM:\$subkey" -ErrorAction SilentlyContinue)) { continue }
@@ -432,6 +446,9 @@ foreach ($s in 'ESRV_SVC_QUEENCREEK', 'USER_ESRV_SVC_QUEENCREEK', 'SystemUsageRe
 }
 foreach ($s in 'IntelTelemetryAgent', 'IntelCollectorService') { Svc $s 4 }
 Svc 'PresentMonSharedService' 3
+# Service of the old "Intel HD Graphics Control Panel" app, which Yaro removes (AppUp.IntelGraphicsControlPanel).
+# Manual = it no longer runs all the time but can still start if that panel is installed again.
+Svc 'igfxCUIService2.0.0.0' 3
 
 # ---------- 12. Background scheduled tasks ----------
 "== Scheduled tasks"
@@ -467,7 +484,22 @@ try {
              '\Microsoft\Windows\Shell\FamilySafetyRefreshTask',
              '\Microsoft\Windows\Maps\MapsToastTask',
              '\Microsoft\Windows\RetailDemo\CleanupOfflineContent',
+             '\Microsoft\Windows\Autochk\Proxy',
+             '\Microsoft\Windows\Device Information\Device',
+             '\Microsoft\Windows\Device Information\Device User',
+             '\Microsoft\Windows\Sustainability\SustainabilityTelemetry',
+             '\Microsoft\Windows\PerformanceTrace\ShowFeedbackToast',
+             '\Microsoft\Windows\PerformanceTrace\WhesvcToast',
+             '\Microsoft\Windows\AccountHealth\RecoverabilityToastTask',
+             '\Microsoft\Windows\Power Efficiency Diagnostics\AnalyzeSystem',
              '\USER_ESRV_SVC_QUEENCREEK'
+  # Defender's own tasks only fail while Defender is off. Windows may protect them, so a refusal is just a note.
+  $quietTasks = @()
+  if ($DisableDefender) {
+    $quietTasks = 'Cache Maintenance', 'Cleanup', 'Scheduled Scan', 'Verification' |
+      ForEach-Object { "\Microsoft\Windows\Windows Defender\Windows Defender $_" }
+  }
+  $taskPaths = @($taskPaths) + $quietTasks
   foreach ($path in $taskPaths) {
     try {
       $task = $folder.GetTask($path)
@@ -479,7 +511,8 @@ try {
     } catch {
       # A missing task or parent folder is normal across Windows editions.
       if ($_.Exception.GetBaseException().HResult -notin 0x80070002, 0x80070003) {
-        Write-YaroFailure "scheduled task $path - $($_.Exception.Message)"
+        if ($path -in $quietTasks) { "  NOTE scheduled task $path is protected by Windows; left as is" }
+        else { Write-YaroFailure "scheduled task $path - $($_.Exception.Message)" }
       }
     }
   }

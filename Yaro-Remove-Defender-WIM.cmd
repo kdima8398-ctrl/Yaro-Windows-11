@@ -1,15 +1,15 @@
 @echo off
 chcp 65001 >nul
 setlocal EnableExtensions EnableDelayedExpansion
-title Yaro — Вырезание / Отключение Windows Defender в образе install.wim
+title Yaro — Отключение Windows Defender в образе install.wim (Windows 11 Pro)
 
 :: Проверка прав Администратора
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo.
     echo ============================================================================
-    echo  [ОШИБКА] Запустите этот скрипт от имени Администратора!
-    echo  [ERROR]  Please right-click and 'Run as Administrator'!
+    echo  [ОШИБКА] Запустите этот скрипт от имени Администратора.
+    echo  [ERROR]  Please right-click and 'Run as Administrator'.
     echo ============================================================================
     echo.
     pause
@@ -18,16 +18,14 @@ if %errorlevel% neq 0 (
 
 echo.
 echo ============================================================================
-echo   YARO — ОФЛАЙН ВЫРЕЗАНИЕ / ОТКЛЮЧЕНИЕ DEFENDER ИЗ ОБРАЗА WINDOWS 11
+echo   YARO — ОФЛАЙН ОТКЛЮЧЕНИЕ DEFENDER В ОБРАЗЕ WINDOWS 11 PRO
 echo ============================================================================
-echo  Этот скрипт модифицирует файл install.wim ДО установки системы.
-echo  Все службы (WinDefend, WdNisSvc, Sense, MDCoreSvc, webthreatdef*, wscsvc,
-echo  SecurityHealth) и драйверы (WdFilter, WdBoot, WdNisDrv) отключаются в реестре.
-echo.
-echo  В результате при установке Windows:
-echo   * Defender НЕ запустится ни разу (0 процессов, 0 нагрузки на CPU/диск);
-echo   * Защита от подделки (Tamper Protection) НЕ заблокирует настройки;
-echo   * Не потребуется вручную заходить в Безопасность Windows после установки.
+echo  Этот скрипт изменяет файл install.wim ДО установки системы.
+echo  Меняется ТОЛЬКО редакция Windows 11 Pro: именно её ставит autounattend.xml.
+echo  Службы (WinDefend, WdNisSvc, Sense, MDCoreSvc, webthreatdef*, wscsvc,
+echo  SecurityHealthService) и драйверы (WdFilter, WdBoot, WdNisDrv) отключаются
+echo  в реестре образа. Файлы Defender остаются на месте.
+echo  В конце скрипт проверяет, что действительно записалось, и пишет результат.
 echo ============================================================================
 echo.
 
@@ -67,8 +65,8 @@ if exist "!USER_INPUT!" (
 :: Проверка на install.esd
 if exist "!USER_INPUT!\sources\install.esd" (
     echo.
-    echo  [!] На диске обнаружен install.esd (сжатый образ).
-    echo      Файлы ESD защищены от прямой модификации.
+    echo  [*] На диске обнаружен install.esd - сжатый образ.
+    echo      Файлы ESD нельзя изменять напрямую.
     echo      Экспортируйте его в WIM через команду:
     echo      dism /Export-Image /SourceImageFile:"!USER_INPUT!\sources\install.esd" /SourceIndex:1 /DestinationImageFile:"!USER_INPUT!\sources\install.wim" /Compress:max
     echo.
@@ -81,26 +79,34 @@ goto :ask_path
 
 :found_wim
 echo.
-echo  Выбран целевой образ:
+echo  Выбран образ:
 echo  "%WIM_PATH%"
+
+:: 2. Автоматический выбор редакции: только Windows 11 Pro (EditionId = Professional).
+::    Pro N, Pro Education и Pro for Workstations имеют другой EditionId и не подходят.
+echo.
+echo  Поиск редакции Windows 11 Pro в образе...
+set "INDEX="
+set "YARO_WIM=%WIM_PATH%"
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = $env:YARO_WIM; foreach ($i in Get-WindowsImage -ImagePath $p) { $d = Get-WindowsImage -ImagePath $p -Index $i.ImageIndex; if ($d.EditionId -eq 'Professional' -and $d.ImageName -like 'Windows 11*') { [Console]::Error.WriteLine('  [+] ' + $d.ImageName + ' - index ' + $d.ImageIndex + ', version ' + $d.Version); $d.ImageIndex; break } }"`) do set "INDEX=%%I"
+if not defined INDEX (
+    echo.
+    echo [ОШИБКА] В образе нет редакции Windows 11 Pro. Образ НЕ изменён.
+    echo          Используйте официальный ISO Windows 11 с сайта Microsoft.
+    echo.
+    pause
+    exit /b 1
+)
+
 echo.
 echo  Внимание: перед продолжением убедитесь, что образ не открыт в других программах.
 echo.
-set /p "CONFIRM=Продолжить модификацию? (Y/N): "
+set /p "CONFIRM=Изменить редакцию Windows 11 Pro (индекс %INDEX%)? (Y/N): "
 if /i not "!CONFIRM!"=="Y" (
     echo Отменено пользователем.
     pause
     exit /b 0
 )
-
-:: 2. Определение индекса (по умолчанию 1)
-set "INDEX=1"
-echo.
-echo  Проверка редакций в образе...
-dism /Get-WimInfo /WimFile:"%WIM_PATH%"
-echo.
-set /p "INDEX=Введите номер индекса для модификации (обычно 1 или номер Pro-редакции, Enter=1): "
-if "!INDEX!"=="" set "INDEX=1"
 
 :: 3. Создание папки монтирования
 set "MOUNT_DIR=%SystemDrive%\Yaro_Wim_Mount"
@@ -117,7 +123,7 @@ echo [1/5] Монтирование образа Windows (это займет 1-
 dism /Mount-Wim /WimFile:"%WIM_PATH%" /Index:%INDEX% /MountDir:"%MOUNT_DIR%"
 if %errorlevel% neq 0 (
     echo.
-    echo [ОШИБКА] Не удалось смонтировать образ!
+    echo [ОШИБКА] Не удалось смонтировать образ. Образ НЕ изменён.
     rd /s /q "%MOUNT_DIR%" >nul 2>&1
     pause
     exit /b 1
@@ -128,85 +134,140 @@ echo.
 echo [2/5] Загрузка реестра смонтированного образа...
 reg load HKLM\YARO_SYS "%MOUNT_DIR%\Windows\System32\config\SYSTEM" >nul
 if %errorlevel% neq 0 (
-    echo [ОШИБКА] Не удалось загрузить куст SYSTEM!
+    echo [ОШИБКА] Не удалось загрузить куст SYSTEM.
     goto :abort
 )
 
 reg load HKLM\YARO_SOFT "%MOUNT_DIR%\Windows\System32\config\SOFTWARE" >nul
 if %errorlevel% neq 0 (
-    echo [ОШИБКА] Не удалось загрузить куст SOFTWARE!
-    reg unload HKLM\YARO_SYS >nul 2>&1
+    echo [ОШИБКА] Не удалось загрузить куст SOFTWARE.
     goto :abort
 )
 
-:: 6. Отключение служб и драйверов Defender
+:: 6. Отключение служб и драйверов Defender (только тех, что есть в образе)
 echo.
-echo [3/5] Отключение всех служб, драйверов перехвата и компонентов Defender...
-
-:: Службы: Start = 4 (Disabled), включая новые службы Win11 24H2/25H2 (MDCoreSvc, webthreatdef*, wscsvc)
-for %%S in (WinDefend WdNisSvc Sense MDCoreSvc webthreatdefsvc webthreatdefusersvc wscsvc SecurityHealthService) do (
-    reg add "HKLM\YARO_SYS\ControlSet001\Services\%%S" /v "Start" /t REG_DWORD /d 4 /f >nul
+echo [3/5] Отключение служб, драйверов и политик Defender...
+set "FAILS=0"
+set "ABSENT="
+set "SERVICES=WinDefend WdNisSvc Sense MDCoreSvc webthreatdefsvc webthreatdefusersvc wscsvc SecurityHealthService WdFilter WdBoot WdNisDrv"
+for %%S in (%SERVICES%) do (
+    reg query "HKLM\YARO_SYS\ControlSet001\Services\%%S" >nul 2>&1
+    if errorlevel 1 (
+        set "ABSENT=!ABSENT! %%S"
+    ) else (
+        reg add "HKLM\YARO_SYS\ControlSet001\Services\%%S" /v "Start" /t REG_DWORD /d 4 /f >nul 2>&1 || (
+            echo    [x] Не записано: служба %%S, Start=4
+            set /a FAILS+=1
+        )
+    )
 )
-reg query "HKLM\YARO_SYS\ControlSet001\Services\webthreatdefusersvc" /v "UserServiceFlags" >nul 2>&1 && reg add "HKLM\YARO_SYS\ControlSet001\Services\webthreatdefusersvc" /v "UserServiceFlags" /t REG_DWORD /d 0 /f >nul
-
-:: Драйверы уровня ядра (перехват файлов и ранняя загрузка)
-for %%D in (WdFilter WdBoot WdNisDrv) do (
-    reg add "HKLM\YARO_SYS\ControlSet001\Services\%%D" /v "Start" /t REG_DWORD /d 4 /f >nul
-)
+reg query "HKLM\YARO_SYS\ControlSet001\Services\webthreatdefusersvc" /v "UserServiceFlags" >nul 2>&1 && call :setdw "HKLM\YARO_SYS\ControlSet001\Services\webthreatdefusersvc" UserServiceFlags 0
 
 :: Политики отключения антивируса и защиты реального времени
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender" /v "DisableAntiSpyware" /t REG_DWORD /d 1 /f >nul
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender" /v "DisableAntiVirus" /t REG_DWORD /d 1 /f >nul
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Real-Time Protection" /v "DisableRealtimeMonitoring" /t REG_DWORD /d 1 /f >nul
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Real-Time Protection" /v "DisableBehaviorMonitoring" /t REG_DWORD /d 1 /f >nul
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Real-Time Protection" /v "DisableOnAccessProtection" /t REG_DWORD /d 1 /f >nul
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Real-Time Protection" /v "DisableScanOnRealtimeEnable" /t REG_DWORD /d 1 /f >nul
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Real-Time Protection" /v "DisableIOAVProtection" /t REG_DWORD /d 1 /f >nul
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender" DisableAntiSpyware 1
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender" DisableAntiVirus 1
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Real-Time Protection" DisableRealtimeMonitoring 1
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Real-Time Protection" DisableBehaviorMonitoring 1
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Real-Time Protection" DisableOnAccessProtection 1
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Real-Time Protection" DisableScanOnRealtimeEnable 1
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Real-Time Protection" DisableIOAVProtection 1
 
 :: Отключение телеметрии SpyNet
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Spynet" /v "SpynetReporting" /t REG_DWORD /d 0 /f >nul
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Spynet" /v "SubmitSamplesConsent" /t REG_DWORD /d 2 /f >nul
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Spynet" SpynetReporting 0
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender\Spynet" SubmitSamplesConsent 2
 
 :: Отключение значка безопасности и уведомлений
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender Security Center\Systray" /v "HideSystray" /t REG_DWORD /d 1 /f >nul
-reg add "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender Security Center\Notifications" /v "DisableNotifications" /t REG_DWORD /d 1 /f >nul
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender Security Center\Systray" HideSystray 1
+call :setdw "HKLM\YARO_SOFT\Policies\Microsoft\Windows Defender Security Center\Notifications" DisableNotifications 1
 reg delete "HKLM\YARO_SOFT\Microsoft\Windows\CurrentVersion\Run" /v "SecurityHealth" /f >nul 2>&1
 
 :: Отключение Tamper Protection в настройках характеристик
-reg add "HKLM\YARO_SOFT\Microsoft\Windows Defender\Features" /v "TamperProtection" /t REG_DWORD /d 0 /f >nul
+call :setdw "HKLM\YARO_SOFT\Microsoft\Windows Defender\Features" TamperProtection 0
 
-:: 7. Выгрузка кустов
+:: Проверка: что действительно записалось в реестр образа
+echo.
+echo  Проверка записанных значений...
+set "OFF=0"
+set "LEFT="
+for %%S in (%SERVICES%) do (
+    reg query "HKLM\YARO_SYS\ControlSet001\Services\%%S" >nul 2>&1
+    if not errorlevel 1 (
+        reg query "HKLM\YARO_SYS\ControlSet001\Services\%%S" /v Start 2>nul | find "0x4" >nul && (
+            set /a OFF+=1
+        ) || (
+            set "LEFT=!LEFT! %%S"
+        )
+    )
+)
+
+:: 7. Выгрузка кустов. Если куст не выгружается, изменения нельзя сохранить безопасно.
 echo.
 echo [4/5] Сохранение и выгрузка веток реестра...
-reg unload HKLM\YARO_SYS >nul 2>&1
-reg unload HKLM\YARO_SOFT >nul 2>&1
+call :unload HKLM\YARO_SYS || (
+    echo [ОШИБКА] Куст SYSTEM занят другой программой и не выгружается.
+    goto :abort
+)
+call :unload HKLM\YARO_SOFT || (
+    echo [ОШИБКА] Куст SOFTWARE занят другой программой и не выгружается.
+    goto :abort
+)
 
 :: 8. Сохранение изменений и размонтирование WIM
 echo.
-echo [5/5] Сохранение изменений в install.wim (коммит образа)...
+echo [5/5] Сохранение изменений в install.wim...
 dism /Unmount-Wim /MountDir:"%MOUNT_DIR%" /Commit
 if %errorlevel% neq 0 (
-    echo [ОШИБКА] Не удалось сохранить изменения при размонтировании!
+    echo.
+    echo [ОШИБКА] Не удалось сохранить изменения в образ. Проверьте место на флешке
+    echo          и запустите скрипт снова.
     pause
     exit /b 1
 )
-
 rd /s /q "%MOUNT_DIR%" >nul 2>&1
 
+:: 9. Честный итог
 echo.
 echo ============================================================================
-echo   УСПЕШНО! Windows Defender полностью отключен в вашем образе!
-echo ============================================================================
-echo  Теперь можно использовать этот install.wim / флешку для чистой установки.
-echo  Никаких служб Защитника запущено не будет.
+if not defined LEFT if "!FAILS!"=="0" (
+    echo   ГОТОВО. Windows 11 Pro, индекс %INDEX%: отключено служб и драйверов: !OFF!.
+    echo   Все политики записаны. Образ можно использовать для чистой установки.
+    if defined ABSENT echo   В этой сборке Windows нет служб:!ABSENT!
+    echo ============================================================================
+    echo.
+    pause
+    exit /b 0
+)
+echo   ГОТОВО С ПРЕДУПРЕЖДЕНИЯМИ. Windows 11 Pro, индекс %INDEX%.
+echo   Отключено служб и драйверов: !OFF!.
+if defined LEFT echo   НЕ отключены:!LEFT!
+if not "!FAILS!"=="0" echo   Не записано параметров: !FAILS! - см. строки [x] выше.
+if defined ABSENT echo   В этой сборке Windows нет служб:!ABSENT!
 echo ============================================================================
 echo.
 pause
-exit /b 0
+exit /b 2
+
+:: ---------------------------------------------------------------------------
+:: Подпрограммы
+:: ---------------------------------------------------------------------------
+:setdw
+reg add "%~1" /v "%~2" /t REG_DWORD /d %~3 /f >nul 2>&1 && exit /b 0
+echo    [x] Не записано: %~1\%~2 = %~3
+set /a FAILS+=1
+exit /b 1
+
+:unload
+for /l %%N in (1,1,5) do (
+    reg unload %1 >nul 2>&1 && exit /b 0
+    ping -n 3 127.0.0.1 >nul
+)
+exit /b 1
 
 :abort
 echo.
-echo  [!] Произошла ошибка. Отмена изменений и размонтирование...
+echo  [*] Изменения НЕ сохранены. Образ размонтируется без записи...
+reg unload HKLM\YARO_SYS >nul 2>&1
+reg unload HKLM\YARO_SOFT >nul 2>&1
 dism /Unmount-Wim /MountDir:"%MOUNT_DIR%" /Discard >nul 2>&1
 rd /s /q "%MOUNT_DIR%" >nul 2>&1
 echo.
