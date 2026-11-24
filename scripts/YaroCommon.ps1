@@ -8,7 +8,7 @@ $PauseUpdates       = $true   # Windows Update: no automatic installs, paused un
 $DisablePrinting    = $true   # print spooler OFF (printers will not work)
 $DisableBtHandsFree = $true   # Bluetooth headset mic OFF (headphones stay in stereo in games)
 $DisableVPN         = $true   # RasMan/RasAuto OFF (built-in Windows VPN will not work)
-$SetWallpaper       = $true   # Yaro notebook wallpaper on the desktop of every user
+$SetWallpaper       = $false   # Yaro notebook wallpaper on the desktop of every user
 $ArgonPerformance   = $true   # Argon tweaks: Ultimate Performance plan + min CPU 5%, Game Mode on,
                               #   SystemResponsiveness 10 (lowest value Windows accepts), no 8.3 names.
                               #   Power throttling stays with Windows: background apps get less power, so the
