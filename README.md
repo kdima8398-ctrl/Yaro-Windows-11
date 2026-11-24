@@ -13,7 +13,8 @@ an answer file (`autounattend.xml`) and PowerShell scripts that apply the change
 
 > [!WARNING]
 > By default Yaro **turns off Microsoft Defender, SmartScreen, UAC prompts, automatic updates,
-> printing, Bluetooth headset microphone and the built-in VPN**. Read
+> printing, Bluetooth headset microphone and the built-in VPN** and switches to the
+> *Ultimate Performance* power plan (shorter battery life on laptops). Read
 > [What Yaro turns off](#what-yaro-turns-off) and [Options](#options) before installing.
 > Try it in a virtual machine first. Use at your own risk.
 
@@ -36,8 +37,8 @@ an answer file (`autounattend.xml`) and PowerShell scripts that apply the change
    For another language, replace `en-US` with its code (for example `ru-RU`) in the
    `UILanguage`, `SystemLocale` and `UserLocale` lines of `autounattend.xml`.
 2. **Optional:** open `autounattend.xml` in Notepad and change
-   - `<TimeZone>UTC</TimeZone>` — your time zone, e.g. `FLE Standard Time` (Kyiv, Sofia),
-     `Russian Standard Time` (Moscow), `Central European Standard Time` (Warsaw);
+   - `<TimeZone>FLE Standard Time</TimeZone>` — the time zone (Kyiv, Sofia by default); others:
+     `Russian Standard Time` (Moscow), `Central European Standard Time` (Warsaw), `UTC`;
    - `<Name>User</Name>` — the name of the local account;
    - the [Options](#options) (search for `Yaro options`).
 3. **Make a USB stick** (8 GB or more) with [Rufus](https://rufus.ie): partition scheme **GPT**,
@@ -51,7 +52,9 @@ an answer file (`autounattend.xml`) and PowerShell scripts that apply the change
      driver downloads through Windows Update, so keep the Wi-Fi/LAN driver on the USB stick;
    - check the logs in `%SystemRoot%\Setup\Scripts\Yaro\` — lines with `FAIL` show what did not apply;
    - after installing Intel drivers you can run `Yaro-Apply.cmd` once more: it removes the
-     Intel telemetry that Intel software installs.
+     Intel telemetry that Intel software installs;
+   - if you want Defender off: turn off **Tamper Protection** (Windows Security › Virus & threat
+     protection › Manage settings) and run `Yaro-Apply.cmd`.
 6. **Activate Windows with your own key:** Settings › System › Activation › Change product key.
    The key in `autounattend.xml` is Microsoft's generic *install* key: it only selects the
    **Pro** edition and does not activate. For a Home license, replace it with the generic
@@ -65,6 +68,8 @@ an answer file (`autounattend.xml`) and PowerShell scripts that apply the change
 3. Run `Yaro-Apply.cmd` from the account you want to configure. Approve elevation for the
    system settings and restore point. The launcher applies desktop and app settings as the original
    user, including when another administrator supplies the credentials.
+   If System Protection is off, Yaro cannot create a restore point and asks whether to continue
+   without one (to turn it on: Win+R › `SystemPropertiesProtection` › drive C: › Configure).
 4. Restart Windows.
 
 ## Options
@@ -75,13 +80,15 @@ Edit the `Yaro options` block inside `autounattend.xml` for a clean install or
 
 | Option | What `$true` does |
 |---|---|
-| `$DisableDefender` | Turns off Microsoft Defender antivirus and hides its tray icon |
+| `$DisableDefender` | Turns off Microsoft Defender antivirus and hides its tray icon. While **Tamper Protection** is on (the default on current Windows, also right after setup), Defender ignores these settings — turn it off and run `Yaro-Apply.cmd` |
 | `$DisableSmartScreen` | Turns off SmartScreen for downloaded files and apps |
 | `$SilentUAC` | Programs get administrator rights without a confirmation window |
 | `$PauseUpdates` | No automatic updates, updates paused until 2077 |
 | `$DisablePrinting` | Turns off the print spooler |
 | `$DisableBtHandsFree` | Turns off the Bluetooth hands-free profile: headphones stay in stereo in games, their microphone is not used |
 | `$DisableVPN` | Turns off RasMan/RasAuto (the built-in Windows VPN and dial-up) |
+| `$ArgonPerformance` | Performance tweaks from the Argon build: *Ultimate Performance* plan with a 5% minimum CPU state (plugged in and on battery), no power throttling of background processes, `SystemResponsiveness = 0`, no 8.3 short names, Game Mode off. Laptop batteries last less |
+| `$ForceMSI` | `$false` by default. Turns on MSI interrupts for the graphics card, NVMe and network adapters, as in Argon. On an unsuitable device the driver can stop working — turn it on only if you know why. Run `Yaro-Apply.cmd` again after installing the graphics driver |
 | `$SetWallpaper` | Sets the cream notebook-paper Yaro wallpaper for every user. The image is embedded in `autounattend.xml` and saved to `%SystemRoot%\Web\Wallpaper\Yaro\`; you can change it any time in Settings › Personalization |
 
 ## What Yaro changes
@@ -124,16 +131,17 @@ unless administrator policy requires autostart. The updater uses a separate task
 
 ### Performance
 - Service host grouping (fewer `svchost.exe` processes), memory compression on.
-- Kernel kept in RAM, reserved storage off. Windows manages background power throttling.
-- NTFS last-access updates off, long paths (> 260 characters) allowed. Windows or the administrator controls 8.3 short names per volume.
+- Kernel kept in RAM, reserved storage off.
+- NTFS last-access updates off, long paths (> 260 characters) allowed.
 - Hardware-accelerated GPU scheduling. Windowed-game optimizations and variable refresh rate
   are enabled when their settings are missing. Existing graphics choices are preserved.
 - Game Bar background recording of recent gameplay is off for the current and new profiles.
-  Game Mode follows the Windows setting. Device drivers choose their interrupt mode.
-- On Balanced and compatible plans, Yaro selects *Best Performance* when plugged in and keeps
-  the existing battery mode. If that mode is unavailable, Yaro tries the *Ultimate Performance*
-  plan with a 5% minimum CPU state. That plan can use more power on battery.
-  Global power-throttling and short-name settings from older versions retain their values.
+- **Argon tweaks** (`$ArgonPerformance`): *Ultimate Performance* plan with a 5% minimum CPU state
+  plugged in and on battery, no power throttling of background processes, full CPU priority for
+  foreground apps (`SystemResponsiveness = 0`), no 8.3 short names, Game Mode off.
+  With `$ArgonPerformance = $false` Yaro keeps the Balanced plan and selects *Best Performance*
+  when plugged in.
+- MSI interrupt mode for the graphics card, NVMe and network only with the `$ForceMSI` option.
 - No network throttling for multimedia, Edge does not preload in the background.
 - Installers and drivers do not hang for 2 minutes on certificate checks
   (short certificate download timeouts).
@@ -159,6 +167,8 @@ Run in **Command Prompt as administrator**, then restart Windows.
 | UAC prompts | `reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System /v ConsentPromptBehaviorAdmin /t REG_DWORD /d 5 /f` |
 | Automatic updates | `reg delete HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU /v NoAutoUpdate /f`, then Settings › Windows Update › *Resume updates* |
 | Windows 11 context menu | `reg delete "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f` |
+| Normal power plan | `powercfg /setactive 381b4222-f694-41f0-9685-ff5bb260df2e` (Balanced) |
+| Game Mode | Settings › Gaming › Game Mode |
 | Removed apps | Install them from Microsoft Store |
 
 Defender and SmartScreen are best kept by setting `$DisableDefender = $false` /
