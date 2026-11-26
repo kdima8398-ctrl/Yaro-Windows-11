@@ -26,6 +26,7 @@ This repository contains **no pirated Windows files**. You download Windows dire
 | `autounattend.xml` | Primary answer file for fully unattended clean install from a USB stick. |
 | `Yaro-Remove-Defender-WIM.cmd` | **Automated offline Defender disabler** directly in `install.wim` BEFORE setup (system files stay intact). |
 | `Yaro-Apply.cmd` | Applies Yaro debloat and optimizations to an existing, already installed Windows 11. |
+| `Yaro-DNS.cmd` | **(Optional)** Benchmarks latency to popular DNS providers and your router/ISP DNS, identifies the fastest one, and configures IPv4 + IPv6 + encrypted DoH (`On automatic`) if you confirm. |
 | `scripts/Remove-Defender-Live.cmd` | Step-by-step Defender disabler on an active, running Windows system. |
 | `scripts/Specialize.ps1` | System phase: removes UWP bloatware, tunes services, optimizes registry and networking. |
 | `scripts/FirstLogon.ps1` | User phase: instantaneous UI responsiveness, File Explorer tweaks, Ultimate Performance plan. |
@@ -95,6 +96,7 @@ If you want Microsoft Defender permanently disabled without any background servi
        ```
 4. **Review logs:** check `%SystemRoot%\Setup\Scripts\Yaro\` for full installation transcripts.
 5. **Activation:** open *Settings → System → Activation* and activate your Windows 11 Pro edition with your digital license or product key.
+6. ***(Optional)* Fast DNS + DoH:** run **`Yaro-DNS.cmd`** to benchmark your router/ISP DNS against major public resolvers, see the fastest server for your connection, and apply IPv4 + IPv6 + encrypted *DoH (On automatic)* **only** if you confirm (`Y`). *(Yaro leaves your DNS unchanged by default; you stay in control.)*
 
 ### Step 7. Additional Optimization & App Setup with CTT (Chris Titus Tech WinUtil)
 

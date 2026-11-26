@@ -126,7 +126,10 @@ $capabilities | Where-Object {
   "  remove $($_.Name)"
   $capability = $_.Name
   try { Remove-WindowsCapability -Online -Name $capability -ErrorAction Stop | Out-Null }
-  catch { Write-YaroFailure "remove capability $capability - $($_.Exception.Message)" }
+  catch {
+    if (Test-YaroPermanentPackageError $_) { "  NOTE capability $capability is permanent on this Windows build; left as is" }
+    else { Write-YaroFailure "remove capability $capability - $($_.Exception.Message)" }
+  }
 }
 
 # ---------- 3. Optional features ----------
@@ -144,7 +147,10 @@ foreach ($name in $disableFeatures) {
   if ($features[$name] -eq 'Enabled') {
     "  disable $name"
     try { Disable-WindowsOptionalFeature -Online -FeatureName $name -NoRestart -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null }
-    catch { Write-YaroFailure "disable feature $name - $($_.Exception.Message)" }
+    catch {
+      if (Test-YaroPermanentPackageError $_) { "  NOTE feature $name is permanent on this Windows build; left as is" }
+      else { Write-YaroFailure "disable feature $name - $($_.Exception.Message)" }
+    }
   }
 }
 # The kernel file carries the servicing build even on releases installed by enablement package.
@@ -380,9 +386,10 @@ if ($ForceMSI) {
 
 # ---------- 9. Explorer: "Open in Notepad" for every file ----------
 try {
+  $notepad = Join-Path $env:SystemRoot 'System32\notepad.exe'
   $k = [Microsoft.Win32.Registry]::LocalMachine.CreateSubKey('SOFTWARE\Classes\*\shell\YaroOpenInNotepad')
-  $k.SetValue('', 'Open in Notepad'); $k.SetValue('Icon', 'notepad.exe')
-  $c = $k.CreateSubKey('command'); $c.SetValue('', 'notepad.exe "%1"'); $c.Close(); $k.Close()
+  $k.SetValue('', 'Open in Notepad'); $k.SetValue('Icon', $notepad)
+  $c = $k.CreateSubKey('command'); $c.SetValue('', ('"{0}" "%1"' -f $notepad)); $c.Close(); $k.Close()
 } catch { Write-YaroFailure "Open in Notepad: $($_.Exception.Message)" }
 
 # ---------- Windows Temp permissions (installers fail with errors 2503/2502 when broken) ----------

@@ -35,6 +35,17 @@ function Write-YaroFailure([string]$Message) {
   "  FAIL $Message"
 }
 
+# 0x800f0825 (CBS permanent package) may appear in HResult or only inside DISM's exception text.
+function Test-YaroPermanentPackageError($ErrorRecord) {
+  $ex = if ($ErrorRecord -is [Exception]) { $ErrorRecord } else { $ErrorRecord.Exception }
+  if (-not $ex) { return $false }
+  $base = $ex.GetBaseException()
+  return ($ex.HResult -eq 0x800f0825 -or
+          ($base -and $base.HResult -eq 0x800f0825) -or
+          $ex.Message -match '0x800f0825' -or
+          ($base -and $base.Message -match '0x800f0825'))
+}
+
 function Get-YaroRegistryPath([string]$Key) {
   $hive, $subkey = $Key -split '\\', 2
   switch ($hive) {
