@@ -180,10 +180,11 @@ if ($features['NetFx3'] -in 'Disabled', 'DisabledWithPayloadRemoved') {
 # ---------- 4. Services ----------
 "== Services"
 foreach ($s in 'DiagTrack', 'dmwappushservice', 'MapsBroker', 'RetailDemo', 'CDPSvc', 'CDPUserSvc',
-               'TermService', 'WSAIFabricSvc', 'PcaSvc', 'InventorySvc', 'TrkWks',
+               'TermService', 'WSAIFabricSvc', 'PcaSvc', 'InventorySvc', 'TrkWks', 'SysMain',
                'whesvc', 'lfsvc', 'SharedAccess', 'PhoneSvc', 'WalletService') { Svc $s 4 }
 foreach ($s in 'WerSvc', 'XblAuthManager', 'XblGameSave', 'XboxNetApiSvc', 'XboxGipSvc', 'RmSvc') { Svc $s 3 }
-foreach ($s in 'SysMain', 'DPS') { Svc $s 2 }
+Svc 'DPS' 2
+if ($Live) { & sc.exe stop SysMain *> $null }
 if ($DisablePrinting)    { Svc 'Spooler' 4; Svc 'PrintNotify' 4; Svc 'PrintWorkflowUserSvc' 4 }
 if ($DisableBtHandsFree) { Svc 'BTAGService' 4 }
 if ($DisableVPN)         { Svc 'RasMan' 4; Svc 'RasAuto' 4 }

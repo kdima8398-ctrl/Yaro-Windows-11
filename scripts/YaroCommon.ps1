@@ -20,7 +20,7 @@ $RemoveOneDrive     = $true   # Uninstall OneDriveSetup + disable OneSyncSvc (al
 $EnablePhotoViewer  = $true   # Register classic Windows Photo Viewer for .jpg/.png/.bmp/.gif/.ico
 $DisableBgApps      = $true   # Prevent Microsoft Store apps from running in the background
 $PreferIPv4         = $true   # Prefer IPv4 over IPv6 (DisabledComponents = 32) without disabling IPv6
-$DisableSearchIndex = $false  # Windows Search service (WSearch) OFF (enable if using Everything/etc.)
+$DisableSearchIndex = $true   # Windows Search service (WSearch) OFF (disable if using Everything/etc.)
 $DisableHibernation = $false  # Full hibernation OFF (powercfg /h off; Fast Startup is always disabled)
 $RemoveIntelApp     = $false  # Remove Intel Graphics Command Center (AppUp.IntelGraphicsExperience + igccservice)
 $ForceMSI           = $false  # Argon MSI interrupts for GPU, NVMe and network (an unsuitable driver can break)
@@ -329,6 +329,9 @@ function Set-YaroUserSettings([string]$UserHive) {
   Set-YaroRegistryValue "$UserHive\Control Panel\Desktop" 'MenuShowDelay' '0' 'REG_SZ'
   Set-YaroRegistryValue "$UserHive\Control Panel\Desktop" 'AutoEndTasks' '0' 'REG_SZ'
   Set-YaroRegistryValue "$UserHive\Control Panel\Accessibility\StickyKeys" 'Flags' '506' 'REG_SZ'
+  Set-YaroRegistryValue "$UserHive\Control Panel\Mouse" 'MouseSpeed' '0' 'REG_SZ'
+  Set-YaroRegistryValue "$UserHive\Control Panel\Mouse" 'MouseThreshold1' '0' 'REG_SZ'
+  Set-YaroRegistryValue "$UserHive\Control Panel\Mouse" 'MouseThreshold2' '0' 'REG_SZ'
   Set-YaroRegistryValue "$UserHive\Control Panel\UnsupportedHardwareNotificationCache" 'SV1' '0' 'REG_DWORD'
   Set-YaroRegistryValue "$UserHive\Control Panel\UnsupportedHardwareNotificationCache" 'SV2' '0' 'REG_DWORD'
 

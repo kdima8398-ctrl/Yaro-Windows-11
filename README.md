@@ -198,7 +198,7 @@ To customize behavior, edit the variables in the `Yaro options` block inside `au
 | `$EnablePhotoViewer` | `$true` | Registers classic fast Windows Photo Viewer file associations (`.jpg`, `.png`, `.bmp`, `.gif`, `.ico`, etc.). |
 | `$DisableBgApps` | `$true` | Prevents Microsoft Store UWP apps from running in the background (`AppPrivacy\LetAppsRunInBackground = 2` system-wide and `GlobalUserDisabled = 1` per-user). |
 | `$PreferIPv4` | `$true` | Prefers IPv4 over IPv6 (`DisabledComponents = 32`) without breaking IPv6 for WSL2 or games. |
-| `$DisableSearchIndex` | `$false` | Disables the `WSearch` indexing service (recommended only if using a third-party search tool like Everything). |
+| `$DisableSearchIndex` | `$true` | Disables the `WSearch` indexing service (set to `$false` if you rely on built-in Windows search rather than tools like Everything). |
 | `$DisableHibernation` | `$false` | Fully disables hibernation (`powercfg /h off`) to save SSD space on desktops. *Fast Startup (`HiberbootEnabled = 0`) is always disabled.* |
 | `$RemoveIntelApp` | `$false` | Removes `AppUp.IntelGraphicsExperience` (Intel Graphics Command Center) and disables `igccservice`. *The `igfxCUIService` of the old Intel HD Graphics Control Panel (an app Yaro removes) is always set to Manual.* |
 | `$ArgonPerformance` | `$true` | High-performance tuning: *Ultimate Performance* power scheme with a 5% minimum CPU state (the CPU cools down at idle and keeps turbo headroom), Game Mode on, `SystemResponsiveness = 10` (the lowest value Windows accepts: it treats 0 as 10), no 8.3 short names. Power throttling of background apps stays with Windows: it never slows the active game, leaves it more thermal headroom and moves background work to E-cores on 12th–14th gen Intel. Laptop battery drains faster. |
@@ -220,7 +220,7 @@ To customize behavior, edit the variables in the `Yaro options` block inside `au
 * **SvcHost Grouping:** sets `SvcHostSplitThresholdInKB = 0xffffffff`, consolidating fragmented svchost processes down to ~55–60.
 * **`C:\Windows\Temp` permissions:** when a cleaner deletes and recreates the folder, its permissions break and installers fail at ~90% with errors **2503 / 2502**. Yaro checks them and restores the Windows defaults when needed.
 * **WinTrust Fix:** eliminates the notorious 2-minute freeze during driver/app installations by preventing CRL network timeouts (`State = 0x23C00` + `ChainEngine` 200/500ms).
-* **Explorer & UX:** `MenuShowDelay = 0` ms, instant startup app launch without the 10-second logon pause (`StartupDelayInMSec = 0`), `TaskbarEndTask`, classic Windows 10 context menu, Explorer opens to "This PC" (`LaunchTo = 1`), hides Home & Gallery, shows file extensions (`HideFileExt = 0`), disables Sticky Keys prompt (`506`), disables Fast Startup (`HiberbootEnabled = 0`), and enables verbose BSoD crash info.
+* **Explorer & UX:** `MenuShowDelay = 0` ms, instant startup app launch without the 10-second logon pause (`StartupDelayInMSec = 0`), `TaskbarEndTask`, classic Windows 10 context menu, Explorer opens to "This PC" (`LaunchTo = 1`), hides Home & Gallery, shows file extensions (`HideFileExt = 0`), disables Sticky Keys prompt (`506`), disables mouse acceleration (`MouseSpeed = 0`), disables `SysMain` (`Superfetch`), disables Fast Startup (`HiberbootEnabled = 0`), and enables verbose BSoD crash info.
 
 ---
 
