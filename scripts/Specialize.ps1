@@ -240,6 +240,8 @@ foreach ($oobeTask in 'OutlookUpdate', 'DevHomeUpdate') {
   if (Test-Path -LiteralPath $oobePath) { Remove-Item -LiteralPath $oobePath -Recurse -Force -ErrorAction SilentlyContinue }
 }
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization' 'DODownloadMode' '0'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\WindowsStore' 'AutoDownload' '2'
+Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient' 'EnableMulticast' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Connect' 'AllowProjectionToPC' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\LiveCaptions' 'AllowLiveCaptions' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location' 'Value' 'Deny' 'REG_SZ'
@@ -253,6 +255,10 @@ if ($DisableWindowsAI) {
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI' 'DisableAIDataAnalysis' '1'
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI' 'AllowRecallEnablement' '0'
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI' 'DisableClickToDo' '1'
+  $paintPol = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint'
+  foreach ($val in 'DisableCocreator', 'DisableImageCreator', 'DisableGenerativeFill') {
+    Set-YaroRegistryValue $paintPol $val '1'
+  }
 }
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\GameDVR' 'AllowGameDVR' '0'
 Set-YaroRegistryValue 'HKLM\SOFTWARE\Policies\Microsoft\Windows\StorageSense' 'AllowStorageSenseGlobal' '0'
@@ -367,6 +373,13 @@ if ($ArgonPerformance) {
   Remove-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling' 'PowerThrottlingOff'
   # MMCSS reserve for background tasks: Windows treats 0 as 10, so 10 is the lowest effective value.
   Set-YaroRegistryValue 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile' 'SystemResponsiveness' '10'
+  $mmcssGames = 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games'
+  Set-YaroRegistryValue $mmcssGames 'GPU Priority' '8'
+  Set-YaroRegistryValue $mmcssGames 'Priority' '6'
+  Set-YaroRegistryValue $mmcssGames 'Scheduling Category' 'High' 'REG_SZ'
+  Set-YaroRegistryValue $mmcssGames 'SFIO Priority' 'High' 'REG_SZ'
+  # Short, variable CPU quantums with high foreground priority boost (0x26)
+  Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\PriorityControl' 'Win32PrioritySeparation' '0x26'
   & fsutil.exe 8dot3name set 1 *> $null
   if ($LASTEXITCODE -ne 0) { Write-YaroFailure "turn off 8.3 short names (exit $LASTEXITCODE)" }
 }
@@ -590,7 +603,7 @@ if ($LASTEXITCODE -eq 0) {
       Set-YaroRegistryValue $wallpaperRunOnce 'YaroWallpaper' "$wallpaperCommand -Once" 'REG_SZ'
     } elseif (-not $SetWallpaper) {
       $runOncePath = 'Registry::' + (Get-YaroRegistryPath $wallpaperRunOnce)
-      $queued = Get-ItemPropertyValue -LiteralPath $runOncePath -Name YaroWallpaper -ErrorAction SilentlyContinue
+      $queued = [Microsoft.Win32.Registry]::GetValue((Get-YaroRegistryPath $wallpaperRunOnce), 'YaroWallpaper', $null)
       $legacyCommand = $wallpaperCommand.Replace('"', '')
       if ($queued -in $wallpaperCommand, "$wallpaperCommand -Once", $legacyCommand, "$legacyCommand -Once") {
         try { Remove-ItemProperty -LiteralPath $runOncePath -Name YaroWallpaper -ErrorAction Stop }

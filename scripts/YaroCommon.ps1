@@ -215,8 +215,17 @@ function Set-YaroMachinePerformance {
   }
 
   "== Memory compression"
-  try { Enable-MMAgent -MemoryCompression -ErrorAction Stop }
-  catch { Write-YaroFailure "memory compression: $($_.Exception.Message)" }
+  try {
+    if (-not (Get-MMAgent -ErrorAction Stop).MemoryCompression) {
+      Enable-MMAgent -MemoryCompression -ErrorAction Stop
+    }
+  } catch { Write-YaroFailure "memory compression: $($_.Exception.Message)" }
+  # Enable-MMAgent can reset SysMain to Automatic; keep Superfetch disabled afterwards.
+  if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Services\SysMain' -ErrorAction SilentlyContinue) {
+    & sc.exe config SysMain start= disabled *> $null
+    & sc.exe stop SysMain *> $null
+    Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Services\SysMain' 'Start' '4'
+  }
 }
 
 function Test-YaroOneDriveInactive {
@@ -375,6 +384,7 @@ function Set-YaroUserSettings([string]$UserHive) {
   # Game DVR & Mode
   Set-YaroRegistryValue "$UserHive\System\GameConfigStore" 'GameDVR_Enabled' '0' 'REG_DWORD'
   Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\GameDVR" 'HistoricalCaptureEnabled' '0' 'REG_DWORD'
+  Set-YaroRegistryValue "$UserHive\Software\Microsoft\Windows\CurrentVersion\GameDVR" 'AppCaptureEnabled' '0' 'REG_DWORD'
   # Game Mode on: Windows prioritises the game and holds back updates and notifications while it runs
   if ($ArgonPerformance) { Set-YaroRegistryValue "$UserHive\Software\Microsoft\GameBar" 'AutoGameModeEnabled' '1' 'REG_DWORD' }
 
