@@ -67,7 +67,8 @@ if ($Live) {
 # ---------- 1. Store apps (removed for all users) ----------
 "== Apps"
 $Apps = @(
-  'Microsoft.GamingApp', 'Microsoft.XboxGamingOverlay', 'Microsoft.XboxSpeechToTextOverlay',
+  'Microsoft.GamingApp', 'Microsoft.GamingServices', 'Microsoft.XboxApp', 'Microsoft.Xbox.TCUI',
+  'Microsoft.XboxIdentityProvider', 'Microsoft.XboxGamingOverlay', 'Microsoft.XboxSpeechToTextOverlay',
   'Microsoft.BingSearch', 'Microsoft.Copilot', 'Microsoft.Windows.Ai.Copilot.Provider',
   'Microsoft.WidgetsPlatformRuntime', 'MicrosoftWindows.Client.WebExperience',
   'Microsoft.WindowsMaps', 'Microsoft.MicrosoftStickyNotes', 'MicrosoftCorporationII.MicrosoftFamily',
@@ -181,10 +182,15 @@ if ($features['NetFx3'] -in 'Disabled', 'DisabledWithPayloadRemoved') {
 "== Services"
 foreach ($s in 'DiagTrack', 'dmwappushservice', 'MapsBroker', 'RetailDemo', 'CDPSvc', 'CDPUserSvc',
                'TermService', 'WSAIFabricSvc', 'PcaSvc', 'InventorySvc', 'TrkWks', 'SysMain',
-               'whesvc', 'lfsvc', 'SharedAccess', 'PhoneSvc', 'WalletService') { Svc $s 4 }
-foreach ($s in 'WerSvc', 'XblAuthManager', 'XblGameSave', 'XboxNetApiSvc', 'XboxGipSvc', 'RmSvc') { Svc $s 3 }
+               'whesvc', 'lfsvc', 'SharedAccess', 'PhoneSvc', 'WalletService', 'PushToInstall',
+               'XblAuthManager', 'XblGameSave', 'XboxNetApiSvc', 'XboxGipSvc', 'GameInputSvc', 'xboxgip') { Svc $s 4 }
+foreach ($s in 'WerSvc', 'RmSvc') { Svc $s 3 }
 Svc 'DPS' 2
-if ($Live) { & sc.exe stop SysMain *> $null }
+if ($Live) {
+  foreach ($s in 'SysMain', 'PushToInstall', 'XblAuthManager', 'XblGameSave', 'XboxNetApiSvc', 'XboxGipSvc', 'GameInputSvc') {
+    & sc.exe stop $s *> $null
+  }
+}
 if ($DisablePrinting)    { Svc 'Spooler' 4; Svc 'PrintNotify' 4; Svc 'PrintWorkflowUserSvc' 4 }
 if ($DisableBtHandsFree) { Svc 'BTAGService' 4 }
 if ($DisableVPN)         { Svc 'RasMan' 4; Svc 'RasAuto' 4 }
@@ -334,6 +340,7 @@ Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy' 'Verifie
 
 # ---------- 8. Performance, memory, file system ----------
 "== Registry: performance"
+# Consolidate svchost processes (~55-60 total); PushToInstall is disabled above so its trigger cannot deadlock netsvcs.
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control' 'SvcHostSplitThresholdInKB' '0xffffffff'
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control' 'WaitToKillServiceTimeout' '5000' 'REG_SZ'
 Set-YaroRegistryValue 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager' 'DisableWpbtExecution' '1'

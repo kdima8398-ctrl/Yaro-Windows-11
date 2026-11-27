@@ -36,7 +36,9 @@ Remove-YaroOneDriveStartup 'HKCU'
 Uninstall-YaroOneDrive
 
 "== Leftover apps of the current user"
-$apps = 'Microsoft.Windows.DevHome', 'MicrosoftWindows.CrossDevice', 'Microsoft.Edge.GameAssist', 'AppUp.IntelGraphicsControlPanel',
+$apps = 'Microsoft.GamingApp', 'Microsoft.GamingServices', 'Microsoft.XboxApp', 'Microsoft.Xbox.TCUI',
+        'Microsoft.XboxIdentityProvider', 'Microsoft.XboxGamingOverlay', 'Microsoft.XboxSpeechToTextOverlay',
+        'Microsoft.Windows.DevHome', 'MicrosoftWindows.CrossDevice', 'Microsoft.Edge.GameAssist', 'AppUp.IntelGraphicsControlPanel',
         'Microsoft.Copilot', 'Microsoft.BingSearch', 'MicrosoftWindows.Client.WebExperience', 'Microsoft.OutlookForWindows'
 if ($RemoveIntelApp) { $apps += 'AppUp.IntelGraphicsExperience' }
 $installedApps = $null
